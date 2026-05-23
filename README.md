@@ -1,138 +1,103 @@
-# Lethe — 録音・文字起こし・議事録
+# Lethe
 
-Lethe はデスクトップ用の音声録音 / 文字起こし / 議事録アプリです。マイク
-（または BlackHole 集約デバイス経由の Zoom / YouTube 音声）を録音し、Whisper
-で文字起こしし、Ollama で議事録 Markdown に変換します。
+**録音・文字起こし・議事録** — A desktop voice recorder, transcriber, and
+meeting-minutes app.
 
-すべてローカルで動作し、音声・文字起こしを外部へ送信しません（Ollama 連携を
-使う場合もローカルの Ollama に接続します）。
-
-## インストール
-
-```sh
-git clone <this repo>
-cd lethe-app
-python -m venv .venv && source .venv/bin/activate
-pip install -e .
-```
-
-これで `lethe` コマンドと `python -m audios.lethe` のどちらでも起動できます。
-
-### 追加で必要なもの
-
-- **Tcl/Tk 付き Python**: pyenv ビルドの Python は既定で `_tkinter` を含ま
-  ないため、Homebrew の `tcl-tk` を入れて Python を再ビルドします。
-
-  ```sh
-  brew install tcl-tk
-  TCL_TK_PREFIX="$(brew --prefix tcl-tk)"
-  export PKG_CONFIG_PATH="$TCL_TK_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
-  export PYTHON_CONFIGURE_OPTS="--with-tcltk-includes='-I${TCL_TK_PREFIX}/include/tcl-tk' --with-tcltk-libs='-L${TCL_TK_PREFIX}/lib -ltcl9.0 -ltcl9tk9.0'"
-  export LDFLAGS="-L${TCL_TK_PREFIX}/lib -Wl,-rpath,${TCL_TK_PREFIX}/lib"
-  export CPPFLAGS="-I${TCL_TK_PREFIX}/include/tcl-tk"
-  pyenv install --force 3.14.4
-  ```
-
-- **Ollama**（`② メモで校正` と `③ 議事録を作成` に必要、任意）:
-
-  ```sh
-  ollama serve
-  ollama pull llama3.1:8b
-  ```
-
-  Ollama が起動していなくても録音・文字起こしは動作します。
-
-- 初回の `① 高精度で文字起こし` 実行時に Whisper モデル
-  (`kotoba-whisper-v2.0`, 約 1.5 GB) を Hugging Face から自動ダウンロード
-  します。
-
-## 使い方（基本フロー）
+Lethe records audio from any input device (microphone or a BlackHole
+aggregate carrying Zoom / YouTube playback), transcribes it locally with
+Whisper, lets you correct it against typed notes, and turns the transcript
+into Markdown meeting minutes via a local Ollama model. **All processing
+is local.** No audio, transcript, or note leaves the machine.
 
 ```
 録音  →  ① 高精度で文字起こし  →  メモに用語を記入  →  ② メモで校正  →  ③ 議事録を作成
 ```
 
-1. **入力デバイス**を選び、必要なら **ノイズ除去** を有効化。
-2. **● 録音開始**（または Space キー）。VU メーターでマイク入力を確認。
-   - **ライブ転写** を ON にすると、5 秒ごとに簡易プレビューを表示。
-3. **■ 停止**。ライブ転写を使っていた場合は自動で `①` が走り、高精度な
-   文字起こしに置き換わります。
-4. 文字起こしの行頭 `[MM:SS]` をクリックすると、その位置から音声を再生。
-   誤りはテキストを直接編集して修正できます。
-5. **メモ**欄に固有名詞・専門用語を入力 → **② メモで校正** で Ollama が
-   表記を統一。
-6. **③ 議事録を作成** で議事録 Markdown を生成。
+## Quick start
 
-既存の音声ファイル（mp3 / m4a / wav 等）は **音声を開く**（Cmd/Ctrl+O）から
-`①` と同じ高精度パスにかけられます。
+```sh
+git clone <this repo> lethe-app
+cd lethe-app
+python -m venv .venv && source .venv/bin/activate
+pip install -e .
+lethe
+```
 
-## セッションの保存・復元
+That puts you at a window with a record button. Press it (or `Space`),
+talk, press it again. The transcript appears below. macOS pyenv users
+will need a one-time Tcl/Tk rebuild — see the setup guide.
 
-`ファイル ＞ セッションを保存` で、音声・文字起こし・メモを 1 つの `.zip`
-にまとめて保存します。`セッションを開く` で後日そのまま復元できます。
+## Documentation
 
-## Zoom / YouTube 音声のキャプチャ（macOS）
+- **[docs/setup.md](docs/setup.md)** — install, Tcl/Tk rebuild for pyenv,
+  Ollama, BlackHole capture, first-run model download, verification.
+- **[docs/usage.md](docs/usage.md)** — the workflow in detail, every
+  control, keyboard shortcuts, file formats, accuracy tips, known
+  limitations.
 
-マイクではなく「再生中の音声」を録音するには仮想オーディオデバイスが必要です。
+## Features
 
-1. `brew install blackhole-2ch` で BlackHole をインストール。
-2. **Audio MIDI 設定** で「複数出力装置」を作成し、スピーカーと
-   BlackHole 2ch を両方チェック。
-3. さらに「機器セット」でマイクと BlackHole 2ch を集約。
-4. Zoom / ブラウザの音声出力先を「複数出力装置」に設定。
-5. Lethe の **入力** で集約した「機器セット」を選択して録音。
+- **Two-tier transcription**: a fast 5s-chunked live preview while
+  recording, then an accurate single-pass over the whole audio with
+  [kotoba-whisper](https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0)
+  when you stop.
+- **Click-to-seek playback**: every transcript line is prefixed with a
+  clickable `[MM:SS]`; click it to jump there in the built-in player and
+  verify the wording.
+- **Editable transcript**: fix what the model missed in place.
+- **Notes-driven accuracy**: type proper nouns and jargon in the notes
+  pane. Notes feed Whisper's `initial_prompt` live, then drive an Ollama
+  refinement pass that rewrites the transcript to match.
+- **One-click minutes**: Ollama produces Markdown minutes (要約・論点・
+  アクションアイテム) from the corrected transcript.
+- **Session bundles**: audio + transcript + notes save into a single
+  `.zip` and reopen as one.
+- **Disk-backed recording**: writes straight to a temp WAV, so a 2-hour
+  meeting stays RAM-flat.
+- **Cross-platform**: macOS and Windows. Tested on Python 3.14.
 
-Zoom のクラウド録画／ローカル録画が使える場合は、「参加者別に音声ファイル
-を記録」設定の方がキャプチャより高品質です。その場合は **音声を開く** で
-取り込めます。
+## Requirements
 
-## ショートカット
+- Python 3.11+
+- A Tk-enabled Python (pyenv builds need a small rebuild step — see
+  [docs/setup.md](docs/setup.md))
+- Optional: [Ollama](https://ollama.com) with `llama3.1:8b` for the
+  refinement and minutes steps. Lethe is fully usable without Ollama;
+  just don't press ② or ③.
 
-| キー | 動作 |
-|---|---|
-| Space | 録音開始 / 停止（テキスト欄にフォーカスがない時） |
-| Cmd/Ctrl + S | 文字起こしを保存 |
-| Cmd/Ctrl + O | 音声ファイルを開く |
-
-## 設定と一時ファイル
-
-- 入力デバイス・ノイズ除去・ライブ転写・ウィンドウサイズは
-  `~/.lethe/settings.json` に保存され、次回起動時に復元されます。
-- 録音は一時 WAV にストリーム書き出しされます。クラッシュで残った古い
-  一時ファイルは起動時に自動で掃除されます。
-
-## 同梱の補助 CLI
-
-歴史的経緯で次の 2 つの CLI も同居しています:
-
-- `python -m audios` — Windows 専用、WASAPI ループバックで「再生中の音声」
-  を WAV に保存するヘッドレスツール。`pip install .[loopback]` で
-  `soundcard` を追加すると使えます。
-- `python -m llm <audio-file>` — 既存の openai-whisper コマンドで音声
-  ファイルを文字起こし → Ollama で議事録化するバッチパイプライン。
-  別途 `pip install openai-whisper` と `whisper` バイナリが必要。
-
-GUI 単体で使う場合はどちらも不要です。
-
-## テスト
+## Tests
 
 ```sh
 pytest -q
 ```
 
-22 件のユニットテストが入っています（音声デバイス・ディスプレイ・ネットワーク
-不要）。
+23 unit tests covering the audio preprocessing, the timestamp helpers,
+the settings round-trip, and the player. None of them touch an audio
+device, display, or network.
 
-## トラブルシューティング
+## Project layout
 
-| 症状 | 対処 |
-|---|---|
-| `_tkinter` が無いと言われて起動しない | 上記の Tcl/Tk 付き Python 再ビルドを実施 |
-| `② 校正` / `③ 議事録` で「Ollama に接続できません」 | `ollama serve` を起動し、`ollama pull llama3.1:8b` を実行 |
-| 録音を開始できない | マイクが他アプリで使用中でないか、システム設定 ＞ プライバシーとセキュリティ ＞ マイク で許可されているか確認 |
-| `①` が長時間「ダウンロード中」のまま | 初回はモデル取得（約 1.5 GB）に数分かかります |
+```
+src/audios/lethe.py          # GUI (Tkinter)
+src/audios/preprocess.py     # bandpass + spectral noise reduction
+src/audios/settings.py       # persisted preferences + temp-file sweep
+src/audios/recorder.py       # (legacy) Windows WASAPI loopback CLI
+src/llm/transcribe_stream.py # 5s live preview
+src/llm/transcribe_final.py  # single-pass HQ transcription
+src/llm/refine.py            # Ollama-driven term correction
+src/llm/summarize.py         # Ollama-driven minutes generation
+src/llm/whisper_models.py    # process-wide WhisperModel cache
+tests/                       # 23 unit tests
+```
 
-## 起源
+## Why "Lethe"?
 
-`qrxarts` リポジトリの中で育ち、コミット `3a287e1f` 時点で独立リポジトリ
-として切り出されました。完全な開発履歴は qrxarts 側の git 履歴に残ります。
+The river of forgetfulness in Greek mythology. The point of recording
+something is to free yourself from having to remember it.
+
+## Origin
+
+Lethe grew inside the [qrxarts](../qrxarts) repository through ~10
+feature passes and was extracted as a standalone project at qrxarts
+commit `3a287e1f`. Its full development history remains in that repo;
+this one starts fresh.
