@@ -14,10 +14,11 @@ file itself, which keeps memory flat for long recordings.
 can show per-segment timestamps and offer click-to-seek playback;
 ``segments_to_text`` flattens them for export or LLM post-processing.
 
-The default model is kotoba-whisper-v2.0, a Japanese-specialised distilled
-Whisper. Because it is distilled, ``condition_on_previous_text`` is left
-off: distilled decoders are prone to repetition loops when conditioned on
-their own previous output.
+The default model is Whisper large-v3 -- the strongest multilingual model
+and currently the best ceiling for Japanese accuracy. Unlike distilled
+models, large-v3 benefits from ``condition_on_previous_text=True`` (it
+does not loop on its own output the way distil decoders do), so we keep
+cross-segment context on.
 """
 
 from __future__ import annotations
@@ -27,10 +28,10 @@ from pathlib import Path
 
 import numpy as np
 
-from llm.transcribe_stream import resample_to_16k
+from llm.transcribe_stream import VAD_PARAMS, format_initial_prompt, resample_to_16k
 from llm.whisper_models import get_whisper_model
 
-DEFAULT_MODEL = "kotoba-tech/kotoba-whisper-v2.0-faster"
+DEFAULT_MODEL = "large-v3"
 
 Segment = tuple[float, float, str]
 
@@ -61,11 +62,13 @@ def transcribe_segments(
     kwargs: dict = {
         "language": language,
         "beam_size": beam_size,
-        "condition_on_previous_text": False,
+        "condition_on_previous_text": True,
         "vad_filter": True,
+        "vad_parameters": VAD_PARAMS,
     }
-    if initial_prompt and initial_prompt.strip():
-        kwargs["initial_prompt"] = initial_prompt.strip()[-800:]
+    formatted_prompt = format_initial_prompt(initial_prompt or "")
+    if formatted_prompt:
+        kwargs["initial_prompt"] = formatted_prompt
 
     segments, info = model.transcribe(audio_input, **kwargs)
     duration = float(getattr(info, "duration", 0.0) or 0.0)

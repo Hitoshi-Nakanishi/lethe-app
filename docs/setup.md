@@ -7,7 +7,7 @@
 
 - **Python 3.11 以上**（3.14 でテスト済み）
 - **Tcl/Tk 同梱の Python**: 後述するように pyenv ビルドはここで詰まりがち。
-- 約 **1.5 GB のディスク空き**（kotoba-whisper モデル用）
+- 約 **4.5 GB のディスク空き**（Whisper モデル用 — large-v3 が ~3 GB、ライブ用 medium が ~1.5 GB）
 - **Ollama**: `② メモで校正` と `③ 議事録を作成` を使うなら必要。録音と
   `① 高精度で文字起こし` だけなら不要。
 
@@ -99,9 +99,10 @@ Ollama を入れない場合、`② メモで校正` と `③ 議事録を作成
 
 ## 5. 初回起動 — モデルのダウンロード
 
-`① 高精度で文字起こし` を初めて押すと、kotoba-whisper-v2.0（約 1.5 GB）
-を Hugging Face から自動取得します。ステータスバーが「初回モデルを
-ダウンロード中…」になり、回線速度次第で **5〜15 分**かかります。
+`① 高精度で文字起こし` を初めて押すと、Whisper large-v3（約 3 GB）と
+（ライブ転写を使う場合は）medium（約 1.5 GB）を Hugging Face から自動
+取得します。ステータスバーが「初回モデルをダウンロード中…」になり、
+回線速度次第で **10〜30 分**かかります。
 
 モデルは `~/.cache/huggingface/hub/` に置かれます。2 回目以降はキャッ
 シュから即ロードされ、転写はすぐに始まります。
@@ -135,7 +136,7 @@ python -m audios.lethe
 
 ```sh
 deactivate
-rm -rf .venv ~/.lethe ~/.cache/huggingface/hub/models--kotoba-tech--kotoba-whisper-v2.0-faster
+rm -rf .venv ~/.lethe ~/.cache/huggingface/hub/models--Systran--faster-whisper-large-v3 ~/.cache/huggingface/hub/models--Systran--faster-whisper-medium
 ```
 
 設定ファイル (`~/.lethe/`) と Whisper モデルキャッシュは別途明示的に
@@ -149,6 +150,6 @@ rm -rf .venv ~/.lethe ~/.cache/huggingface/hub/models--kotoba-tech--kotoba-whisp
 | `ModuleNotFoundError: No module named '_tkinter'` | セクション 2 の Tcl/Tk 付き Python 再ビルドを実施 |
 | `② 校正` / `③ 議事録` で「Ollama に接続できません」 | `ollama serve` を起動し、`ollama pull llama3.1:8b` を実行 |
 | 録音を開始できない | マイクが他アプリで使用中でないか、システム設定で許可されているか確認（セクション 6） |
-| `①` がいつまでも「ダウンロード中」 | 初回はモデル取得（約 1.5 GB）に数分かかります |
+| `①` がいつまでも「ダウンロード中」 | 初回はモデル取得（large-v3 ~3 GB、medium ~1.5 GB）に十数分かかります |
 | 「入力」ドロップダウンに BlackHole が出ない | Audio MIDI 設定で機器セットを作成済みか確認、再表示は `↻` ボタン |
 | 録音は動くが転写が空 | 音量が極端に小さい / VAD が無音と判定。`ノイズ除去` を OFF にして試す |

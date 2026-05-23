@@ -15,7 +15,7 @@ Highlights:
 - Recording streams straight to a temp WAV (RAM stays flat for long
   meetings); a live VU meter confirms the mic is picking up sound.
 - Live transcribe gives a fast 5s-chunked preview; on stop, an accurate
-  full-file pass (kotoba-whisper) replaces it with timestamped segments.
+  full-file pass (Whisper large-v3) replaces it with timestamped segments.
 - Every transcript line carries a clickable [MM:SS] timestamp that seeks
   the built-in player, so a suspect line can be re-listened to.
 - Notes feed Whisper's initial_prompt and the Ollama refinement step.
@@ -52,11 +52,11 @@ SAMPLE_RATE = 44100
 CHANNELS = 1
 DTYPE = "int16"
 MP3_BITRATE = 128
-WHISPER_MODEL = "base"
+WHISPER_MODEL = "medium"
 WHISPER_LANGUAGE = "ja"
 WHISPER_CHUNK_SECONDS = 5.0
-HQ_MODEL = "kotoba-tech/kotoba-whisper-v2.0-faster"
-HQ_MODEL_LABEL = "kotoba-whisper-v2.0"
+HQ_MODEL = "large-v3"
+HQ_MODEL_LABEL = "large-v3"
 OLLAMA_MODEL = "llama3.1:8b"
 OLLAMA_URL = "http://localhost:11434"
 PLAYBACK_SR = 16000  # opened files / sessions are decoded to 16 kHz mono for playback
@@ -96,14 +96,14 @@ TIMESTAMP_RE = re.compile(r"^\[(?:(\d+):)?(\d{1,2}):(\d{2})\]")
 
 TOOLTIP_RECORD = "マイク（選択した入力デバイス）の録音を開始／停止します。Space キーでも操作できます。"
 TOOLTIP_LIVE = (
-    "録音中、5 秒ごとに簡易モデル(base)で暫定の文字起こしを表示します。"
-    "停止すると自動で「① 高精度で文字起こし」が走り、正確な結果に置き換わります。"
+    "録音中、5 秒ごとに Whisper medium で暫定の文字起こしを表示します。"
+    "停止すると自動で「① 高精度で文字起こし」が走り、より正確な結果に置き換わります。"
 )
 TOOLTIP_NR = "録音音声から定常ノイズ（ファン・空調音など）を除去し、文字起こしの精度を上げます。"
 TOOLTIP_OPEN = "既存の音声ファイル(mp3/m4a/wav 等)を開き、「① 高精度で文字起こし」と同じ処理を実行します。"
 TOOLTIP_MP3 = "録音した音声を MP3 ファイルとして保存します。"
 TOOLTIP_HQ = (
-    "録音または開いた音声の全体を kotoba-whisper（高精度モデル）で文字起こしします。"
+    "録音または開いた音声の全体を Whisper large-v3 で文字起こしします。"
     "ライブ転写より時間はかかりますが、より正確です。"
 )
 TOOLTIP_REFINE = (
