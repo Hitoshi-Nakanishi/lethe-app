@@ -37,10 +37,11 @@ will need a one-time Tcl/Tk rebuild — see the setup guide.
 
 ## Features
 
-- **Two-tier transcription**: a fast 5s-chunked live preview while
-  recording, then an accurate single-pass over the whole audio with
-  [kotoba-whisper](https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0)
-  when you stop.
+- **Two-tier transcription**: a 5s-chunked live preview (Whisper medium)
+  while recording, then an accurate single-pass over the whole audio
+  with [Whisper large-v3](https://huggingface.co/openai/whisper-large-v3)
+  when you stop. Models default to accuracy; swap to smaller ones in
+  `src/audios/lethe.py` if you need speed.
 - **Click-to-seek playback**: every transcript line is prefixed with a
   clickable `[MM:SS]`; click it to jump there in the built-in player and
   verify the wording.

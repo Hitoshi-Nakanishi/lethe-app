@@ -2,8 +2,9 @@
 
 Two optional, composable stages applied to float32 mono audio in [-1, 1]:
 
-1. ``_bandpass``: 4th-order Butterworth bandpass clamped to 80 Hz – 8 kHz.
-   Removes low rumble (HVAC, mic stand vibration) and high hiss/whistle.
+1. ``_bandpass``: 4th-order Butterworth bandpass clamped to 80 Hz – 11 kHz.
+   Removes low rumble (HVAC, mic stand vibration) without cutting the
+   upper formants that distinguish similar Japanese phonemes.
 2. ``_denoise``: spectral gating via ``noisereduce`` in ``stationary=True``
    mode. Works well for constant background noise (fan, room tone, light
    street rumble). Less effective on non-stationary noise (chatter, music).
@@ -36,7 +37,7 @@ def preprocess_float32(
     return out
 
 
-def _bandpass(audio_f32: np.ndarray, sr: int, low_hz: float = 80.0, high_hz: float = 8000.0) -> np.ndarray:
+def _bandpass(audio_f32: np.ndarray, sr: int, low_hz: float = 80.0, high_hz: float = 11000.0) -> np.ndarray:
     nyq = sr / 2.0
     low = max(low_hz / nyq, 1e-4)
     high = min(high_hz / nyq, 0.999)

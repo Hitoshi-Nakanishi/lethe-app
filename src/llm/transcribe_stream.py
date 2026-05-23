@@ -25,6 +25,32 @@ import numpy as np
 
 TARGET_SR = 16000
 
+# Permissive VAD: lower threshold + more padding so short utterances and
+# soft speech aren't dropped. faster-whisper's defaults (threshold=0.5,
+# silence=2000ms, pad=400ms) are tuned for noisy podcast audio and cut
+# more aggressively than we want for meetings.
+VAD_PARAMS = {
+    "threshold": 0.35,
+    "min_silence_duration_ms": 1000,
+    "speech_pad_ms": 600,
+}
+
+
+def format_initial_prompt(notes: str) -> str | None:
+    """Turn freeform notes into a directive ``initial_prompt`` for Whisper.
+
+    Whisper caps the prompt at ~224 tokens, so we trim to the last 800
+    characters and frame it as an authoritative-spelling instruction --
+    that biases decoding more strongly than dumping raw notes verbatim.
+    """
+    if not notes:
+        return None
+    text = notes.strip()
+    if not text:
+        return None
+    framed = f"以下の用語は正しい表記としてそのまま使ってください: {text}"
+    return framed[-800:]
+
 
 def resample_to_16k(audio_f32: np.ndarray, source_sr: int) -> np.ndarray:
     """Resample float32 audio to 16 kHz (Whisper's native input rate)."""
@@ -119,12 +145,10 @@ class StreamingTranscriber:
         if self._prompt_provider is None:
             return None
         try:
-            prompt = self._prompt_provider()
+            notes = self._prompt_provider() or ""
         except Exception:
             return None
-        prompt = prompt.strip() if prompt else ""
-        # Whisper caps the initial_prompt at ~224 tokens; keep notes short.
-        return prompt[-800:] if prompt else None
+        return format_initial_prompt(notes)
 
     def _transcribe(self, audio_f32: np.ndarray) -> None:
         try:
@@ -134,7 +158,11 @@ class StreamingTranscriber:
                 except Exception as exc:
                     self._on_text(f"[preprocess error: {exc}]")
             resampled = resample_to_16k(audio_f32, self._source_sr)
-            kwargs: dict = {"language": self._language, "vad_filter": True}
+            kwargs: dict = {
+                "language": self._language,
+                "vad_filter": True,
+                "vad_parameters": VAD_PARAMS,
+            }
             prompt = self._current_prompt()
             if prompt:
                 kwargs["initial_prompt"] = prompt

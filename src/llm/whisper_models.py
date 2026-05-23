@@ -1,7 +1,7 @@
 """Process-wide cache of loaded faster-whisper models.
 
-Constructing a ``WhisperModel`` loads weights from disk (kotoba-whisper is
-~1.5 GB) and takes several seconds. The recorder GUI transcribes
+Constructing a ``WhisperModel`` loads weights from disk (large-v3 is
+~3 GB) and takes several seconds. The recorder GUI transcribes
 repeatedly, so each ``(model, device, compute_type)`` instance is kept
 resident and the same object is handed back on later calls.
 
