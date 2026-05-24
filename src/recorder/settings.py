@@ -47,6 +47,7 @@ DEFAULT_CONFIG: dict = {
         "theme": "midnight",
         "dark_mode": True,
         "language": "ja",
+        "font_size": 11,
     },
 }
 
@@ -60,6 +61,7 @@ DEFAULTS: dict = {
     "theme": "midnight",
     "dark_mode": True,
     "language": "ja",
+    "font_size": 11,
 }
 
 # Temp-WAV name patterns Lethe creates; swept on startup.
@@ -98,6 +100,7 @@ def _merge_defaults(out: dict, defaults: object) -> None:
         return
     bool_keys = {"mic_capture", "noise_reduce", "live", "dark_mode"}
     str_keys = {"llm_model", "theme", "language"}
+    int_keys = {"font_size"}
     for key in bool_keys:
         value = defaults.get(key)
         if isinstance(value, bool):
@@ -105,6 +108,10 @@ def _merge_defaults(out: dict, defaults: object) -> None:
     for key in str_keys:
         value = defaults.get(key)
         if isinstance(value, str):
+            out["defaults"][key] = value
+    for key in int_keys:
+        value = defaults.get(key)
+        if isinstance(value, int):
             out["defaults"][key] = value
 
 

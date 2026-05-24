@@ -33,6 +33,7 @@ def test_save_then_load_roundtrip(tmp_path, monkeypatch):
             "theme": "ember",
             "dark_mode": False,
             "language": "en",
+            "font_size": 13,
             "geometry": "800x600",
             "junk": "ignored",
         }
@@ -46,6 +47,7 @@ def test_save_then_load_roundtrip(tmp_path, monkeypatch):
     assert loaded["theme"] == "ember"
     assert loaded["dark_mode"] is False
     assert loaded["language"] == "en"
+    assert loaded["font_size"] == 13
     assert loaded["geometry"] == "800x600"
     assert "junk" not in loaded  # unknown keys are dropped
 
@@ -68,6 +70,7 @@ live = false
 noise_reduce = true
 llm_model = "mistral:7b"
 language = "en"
+font_size = 13
 """,
         encoding="utf-8",
     )
@@ -84,6 +87,7 @@ language = "en"
     assert loaded["defaults"]["noise_reduce"] is True
     assert loaded["defaults"]["llm_model"] == "mistral:7b"
     assert loaded["defaults"]["language"] == "en"
+    assert loaded["defaults"]["font_size"] == 13
 
 
 def test_load_settings_uses_toml_defaults_before_saved_preferences(tmp_path, monkeypatch):
@@ -98,6 +102,7 @@ llm_model = "qwen2.5:7b"
 theme = "aurora"
 dark_mode = false
 language = "en"
+font_size = 12
 """,
         encoding="utf-8",
     )
@@ -113,11 +118,12 @@ language = "en"
     assert loaded["theme"] == "aurora"
     assert loaded["dark_mode"] is False
     assert loaded["language"] == "en"
+    assert loaded["font_size"] == 12
 
 
 def test_saved_settings_override_toml_defaults(tmp_path, monkeypatch):
     config = tmp_path / "default.toml"
-    config.write_text("[defaults]\nlive = false\nllm_model = \"qwen2.5:7b\"\n", encoding="utf-8")
+    config.write_text('[defaults]\nlive = false\nllm_model = "qwen2.5:7b"\n', encoding="utf-8")
     monkeypatch.setattr(st, "CONFIG_PATH", config)
     monkeypatch.setattr(st, "SETTINGS_PATH", tmp_path / "settings.json")
     st.save_settings({"live": True, "llm_model": "mistral:7b"})
@@ -135,6 +141,7 @@ def test_invalid_toml_defaults_are_ignored(tmp_path):
 [defaults]
 live = "false"
 llm_model = 123
+font_size = "big"
 """,
         encoding="utf-8",
     )
@@ -143,6 +150,7 @@ llm_model = 123
 
     assert loaded["defaults"]["live"] is True
     assert loaded["defaults"]["llm_model"] == ""
+    assert loaded["defaults"]["font_size"] == 11
 
 
 def test_llm_models_includes_default_when_missing(tmp_path, monkeypatch):

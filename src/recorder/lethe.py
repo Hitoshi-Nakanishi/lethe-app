@@ -48,6 +48,9 @@ APP_NAME = "Lethe"
 APP_TAGLINE = "録音・文字起こし・議事録"
 LANGUAGES = {"ja": "日本語", "en": "English"}
 LANGUAGE_CODES = {label: code for code, label in LANGUAGES.items()}
+DEFAULT_FONT_SIZE = 11
+MIN_FONT_SIZE = 9
+MAX_FONT_SIZE = 18
 
 SAMPLE_RATE = 44100
 CHANNELS = 1
@@ -476,6 +479,14 @@ def describe_error(
     return f"{type(exc).__name__}: {exc}"
 
 
+def _coerce_font_size(value: object) -> int:
+    try:
+        size = int(value)
+    except (TypeError, ValueError):
+        size = DEFAULT_FONT_SIZE
+    return max(MIN_FONT_SIZE, min(MAX_FONT_SIZE, size))
+
+
 def _initialdir_option(key: str) -> dict[str, str]:
     path = settings_store.configured_path(key, create=True)
     return {"initialdir": str(path)} if path is not None else {}
@@ -844,6 +855,7 @@ class App:
         self._dark_var = tk.BooleanVar(value=bool(self._settings.get("dark_mode")))
         saved_language = str(self._settings.get("language") or "ja")
         self._language_var = tk.StringVar(value=LANGUAGES.get(saved_language, LANGUAGES["ja"]))
+        self._font_size = _coerce_font_size(self._settings.get("font_size"))
         _apply_palette(self._theme_key(), self._dark_var.get())
         self._device_index: int | None = self._settings.get("device_index")
         self._devices: list[tuple[str, int | None]] = [("システム既定", None)]
@@ -882,19 +894,19 @@ class App:
         except tk.TclError:
             pass
 
-        style.configure(".", background=BG, foreground=TEXT, font=("", 11))
+        style.configure(".", background=BG, foreground=TEXT, font=self._font())
         style.configure("TFrame", background=BG)
         style.configure("Card.TFrame", background=SURFACE)
         style.configure("Header.TFrame", background=SURFACE)
         style.configure("TLabel", background=BG, foreground=TEXT)
         style.configure("Card.TLabel", background=SURFACE, foreground=TEXT)
-        style.configure("Title.TLabel", background=SURFACE, foreground=TEXT, font=("", 12, "bold"))
-        style.configure("Hint.TLabel", background=SURFACE, foreground=TEXT_MUTED, font=("", 10))
-        style.configure("Workflow.TLabel", background=SURFACE, foreground=ACCENT, font=("", 10))
-        style.configure("Wordmark.TLabel", background=SURFACE, foreground=ACCENT, font=("", 22, "bold"))
-        style.configure("Tagline.TLabel", background=SURFACE, foreground=TEXT_MUTED, font=("", 11))
-        style.configure("Timer.TLabel", background=SURFACE, foreground=TEXT, font=("", 26, "bold"))
-        style.configure("Status.TLabel", background=BG, foreground=TEXT, font=("", 12), padding=(10, 3))
+        style.configure("Title.TLabel", background=SURFACE, foreground=TEXT, font=self._font(1, "bold"))
+        style.configure("Hint.TLabel", background=SURFACE, foreground=TEXT_MUTED, font=self._font(-1))
+        style.configure("Workflow.TLabel", background=SURFACE, foreground=ACCENT, font=self._font(-1))
+        style.configure("Wordmark.TLabel", background=SURFACE, foreground=ACCENT, font=self._font(11, "bold"))
+        style.configure("Tagline.TLabel", background=SURFACE, foreground=TEXT_MUTED, font=self._font())
+        style.configure("Timer.TLabel", background=SURFACE, foreground=TEXT, font=self._font(15, "bold"))
+        style.configure("Status.TLabel", background=BG, foreground=TEXT, font=self._font(1), padding=(10, 3))
 
         style.configure(
             "TButton",
@@ -905,7 +917,7 @@ class App:
             relief="flat",
             focuscolor=SURFACE,
             padding=(11, 6),
-            font=("", 11),
+            font=self._font(),
         )
         style.map(
             "TButton",
@@ -923,7 +935,7 @@ class App:
                 relief="flat",
                 focuscolor=base,
                 padding=(13, 7),
-                font=("", 11, "bold"),
+                font=self._font(0, "bold"),
             )
             style.map(
                 f"{name}.TButton",
@@ -941,7 +953,7 @@ class App:
             relief="flat",
             focuscolor=ACCENT_SOFT,
             padding=(11, 6),
-            font=("", 11, "bold"),
+            font=self._font(0, "bold"),
         )
         style.map(
             "Step.TButton",
@@ -1028,10 +1040,15 @@ class App:
     def _tr(self, key: str, **kwargs) -> str:
         return text_for(self._language_code(), key, **kwargs)
 
+    def _font(self, delta: int = 0, weight: str | None = None) -> tuple[str, int] | tuple[str, int, str]:
+        size = max(MIN_FONT_SIZE, self._font_size + delta)
+        return ("", size, weight) if weight else ("", size)
+
     def _on_theme_change(self, _event=None) -> None:
         _apply_palette(self._theme_key(), self._dark_var.get())
         self.root.configure(background=BG)
         self._configure_style()
+        self._restyle_direct_fonts()
         self._restyle_text_widgets()
         self._set_status(self.status["text"], self._status_kind)
 
@@ -1073,6 +1090,7 @@ class App:
             widget = getattr(self, widget_name, None)
             if widget is not None:
                 widget.configure(
+                    font=self._font(1),
                     background=SURFACE_2,
                     foreground=TEXT,
                     insertbackground=ACCENT,
@@ -1083,6 +1101,12 @@ class App:
                 )
         if hasattr(self, "wave"):
             self.wave.restyle()
+
+    def _restyle_direct_fonts(self) -> None:
+        if hasattr(self, "status_icon"):
+            self.status_icon.configure(font=self._font(-2, "bold"))
+        if hasattr(self, "status"):
+            self.status.configure(font=self._font(0, "bold"))
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self.root)
@@ -1111,9 +1135,9 @@ class App:
         self.timer.grid(row=0, column=5, sticky="e")
         self.status_banner = tk.Frame(inner, bd=0, highlightthickness=1)
         self.status_banner.grid(row=1, column=5, sticky="e", pady=(8, 0), ipadx=10, ipady=4)
-        self.status_icon = tk.Label(self.status_banner, text="OK", width=3, anchor="center", font=("", 9, "bold"))
+        self.status_icon = tk.Label(self.status_banner, text="OK", width=3, anchor="center", font=self._font(-2, "bold"))
         self.status_icon.pack(side="left", padx=(0, 7))
-        self.status = tk.Label(self.status_banner, text=self._tr("status_ready"), font=("", 11, "bold"))
+        self.status = tk.Label(self.status_banner, text=self._tr("status_ready"), font=self._font(0, "bold"))
         self.status.pack(side="left")
         self._set_status(self._tr("status_ready"), "ready")
         self.dark_check = ttk.Checkbutton(inner, text=self._tr("dark"), variable=self._dark_var, command=self._on_theme_change)
@@ -1267,7 +1291,7 @@ class App:
         self.transcript = tk.Text(
             text_frame,
             wrap="word",
-            font=("", 12),
+            font=self._font(1),
             height=10,
             undo=True,
             relief="flat",
@@ -1323,7 +1347,7 @@ class App:
         self.notes_text = tk.Text(
             notes_frame,
             wrap="word",
-            font=("", 12),
+            font=self._font(1),
             undo=True,
             relief="flat",
             highlightthickness=1,
@@ -1351,6 +1375,10 @@ class App:
             self.root.bind(seq, lambda _e: self._shortcut_export())
         for seq in ("<Command-o>", "<Control-o>"):
             self.root.bind(seq, lambda _e: self.open_audio())
+        for seq in ("<Control-plus>", "<Control-equal>", "<Control-KP_Add>", "<Command-plus>", "<Command-equal>"):
+            self.root.bind_all(seq, self._increase_font_size, add="+")
+        for seq in ("<Control-minus>", "<Control-KP_Subtract>", "<Command-minus>"):
+            self.root.bind_all(seq, self._decrease_font_size, add="+")
 
     def _on_space(self, _event):
         widget = self.root.focus_get()
@@ -1362,6 +1390,22 @@ class App:
     def _shortcut_export(self):
         if str(self.export_txt_button["state"]) == "normal":
             self.export_transcript()
+        return "break"
+
+    def _increase_font_size(self, _event=None):
+        return self._adjust_font_size(1)
+
+    def _decrease_font_size(self, _event=None):
+        return self._adjust_font_size(-1)
+
+    def _adjust_font_size(self, delta: int):
+        new_size = _coerce_font_size(self._font_size + delta)
+        if new_size == self._font_size:
+            return "break"
+        self._font_size = new_size
+        self._configure_style()
+        self._restyle_direct_fonts()
+        self._restyle_text_widgets()
         return "break"
 
     # ---------- recording lifecycle ----------
@@ -1844,7 +1888,7 @@ class App:
         text = tk.Text(
             frame,
             wrap="word",
-            font=("", 12),
+            font=self._font(1),
             undo=True,
             relief="flat",
             highlightthickness=1,
@@ -2126,6 +2170,7 @@ class App:
                 "theme": self._theme_key(),
                 "dark_mode": bool(self._dark_var.get()),
                 "language": self._language_code(),
+                "font_size": self._font_size,
                 "geometry": self.root.winfo_geometry(),
             }
         )
