@@ -27,3 +27,4 @@ llm_model = ""
 theme = "midnight"
 dark_mode = true
 language = "ja"
+font_size = 11

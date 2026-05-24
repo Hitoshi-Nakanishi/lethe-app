@@ -20,6 +20,7 @@ from recorder.lethe import (
     PLAYBACK_SR,
     App,
     Player,
+    _coerce_font_size,
     _fmt_time,
     _is_connection_error,
     _parse_leading_timestamp,
@@ -34,6 +35,13 @@ def test_fmt_time_minutes_and_hours():
     assert _fmt_time(599) == "09:59"
     assert _fmt_time(3725) == "1:02:05"
     assert _fmt_time(-5) == "00:00"
+
+
+def test_coerce_font_size_clamps_invalid_and_extreme_values():
+    assert _coerce_font_size("bad") == 11
+    assert _coerce_font_size(3) == 9
+    assert _coerce_font_size(99) == 18
+    assert _coerce_font_size("13") == 13
 
 
 def test_parse_leading_timestamp():
