@@ -37,6 +37,13 @@ Optionally pre-download the configured Whisper models before first use:
 task models
 ```
 
+List and pre-download configured Ollama LLM models:
+
+```sh
+task llm-model-list
+task download-llm-model -- llama3.1:8b
+```
+
 ## Features
 
 - Record microphone speech or any input/loopback source your OS exposes.

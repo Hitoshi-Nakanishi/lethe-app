@@ -28,6 +28,13 @@ task run
 task models
 ```
 
+You can also list and pre-download Ollama LLM models.
+
+```sh
+task llm-model-list
+task download-llm-model -- llama3.1:8b
+```
+
 uv を使う場合:
 
 ```sh
@@ -59,7 +66,7 @@ Ollama を入れてサービスを起動し、モデルを取得します。
 
 ```sh
 ollama serve
-ollama pull llama3.1:8b
+task download-llm-model -- llama3.1:8b
 ```
 
 録音と文字起こしだけなら Ollama は不要です。メモで校正、議事録生成を使う場合に必要です。
