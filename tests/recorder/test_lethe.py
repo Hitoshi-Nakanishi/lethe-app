@@ -18,6 +18,7 @@ from types import SimpleNamespace
 import numpy as np
 
 import recorder.lethe as lethe
+from recorder import ui
 from recorder.lethe import (
     PLAYBACK_SR,
     App,
@@ -133,8 +134,8 @@ def test_apply_palette_switches_theme_globals():
 
 
 def test_wave_bar_heights_are_normalized_and_react_to_level():
-    quiet = lethe._wave_bar_heights(0.0, 0.0, count=8)
-    loud = lethe._wave_bar_heights(1.0, 0.0, count=8)
+    quiet = ui._wave_bar_heights(0.0, 0.0, count=8)
+    loud = ui._wave_bar_heights(1.0, 0.0, count=8)
 
     assert len(quiet) == 8
     assert len(loud) == 8

@@ -62,6 +62,7 @@ from recorder.i18n import (
     text_for,
 )
 from recorder.theme import THEME_LABELS, THEMES, palette_for
+from recorder.ui import Switch, Tooltip, UiColors, WaveMeter
 
 APP_NAME = "Lethe"
 APP_TAGLINE = "録音・文字起こし・議事録"
@@ -108,6 +109,20 @@ def _apply_palette(theme: str, dark_mode: bool) -> None:
     DISABLED_FG = palette["disabled_fg"]
 
 
+def _ui_colors() -> UiColors:
+    return {
+        "surface": SURFACE,
+        "surface_2": SURFACE_2,
+        "border": BORDER,
+        "text": TEXT,
+        "muted": TEXT_MUTED,
+        "accent": ACCENT,
+        "accent_dark": ACCENT_DARK,
+        "disabled_bg": DISABLED_BG,
+        "disabled_fg": DISABLED_FG,
+    }
+
+
 PAD_X = 16
 PAD_Y = 12
 
@@ -142,17 +157,6 @@ def _parse_leading_timestamp(line: str) -> float | None:
         return None
     hours = int(m.group(1) or 0)
     return hours * 3600 + int(m.group(2)) * 60 + int(m.group(3))
-
-
-def _wave_bar_heights(level: float, phase: float, count: int = 32) -> list[float]:
-    """Return normalized animated bar heights for the wave meter."""
-    level = max(0.0, min(level, 1.0))
-    heights = []
-    for i in range(count):
-        carrier = 0.5 + 0.5 * np.sin(phase + i * 0.58)
-        ripple = 0.5 + 0.5 * np.sin(phase * 0.37 + i * 1.17)
-        heights.append(max(0.06, min(1.0, 0.08 + level * (0.36 + 0.46 * carrier + 0.18 * ripple))))
-    return heights
 
 
 def _is_connection_error(exc: Exception) -> bool:
@@ -282,226 +286,6 @@ def hq_model_cached(model_id: str = HQ_MODEL) -> bool:
     """True if the HQ model already sits in the Hugging Face cache on disk."""
     folder = "models--" + model_id.replace("/", "--")
     return (Path.home() / ".cache" / "huggingface" / "hub" / folder).exists()
-
-
-class Tooltip:
-    """A small hover-help popup for a Tk/ttk widget."""
-
-    def __init__(self, widget: tk.Widget, text: str, delay_ms: int = 450) -> None:
-        self.widget = widget
-        self.text = text
-        self.delay_ms = delay_ms
-        self._after: str | None = None
-        self._tip: tk.Toplevel | None = None
-        widget.bind("<Enter>", self._schedule, add="+")
-        widget.bind("<Leave>", self._hide, add="+")
-        widget.bind("<ButtonPress>", self._hide, add="+")
-
-    def _schedule(self, _event=None) -> None:
-        self._cancel()
-        self._after = self.widget.after(self.delay_ms, self._show)
-
-    def _cancel(self) -> None:
-        if self._after is not None:
-            self.widget.after_cancel(self._after)
-            self._after = None
-
-    def _show(self) -> None:
-        if self._tip is not None:
-            return
-        x = self.widget.winfo_rootx() + 14
-        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 6
-        self._tip = tk.Toplevel(self.widget)
-        self._tip.wm_overrideredirect(True)
-        self._tip.wm_geometry(f"+{x}+{y}")
-        tk.Label(
-            self._tip,
-            text=self.text,
-            justify="left",
-            background="#2b2f38",
-            foreground="#f4f5f7",
-            relief="flat",
-            font=("", 10),
-            padx=10,
-            pady=7,
-            wraplength=340,
-        ).pack()
-
-    def _hide(self, _event=None) -> None:
-        self._cancel()
-        if self._tip is not None:
-            self._tip.destroy()
-            self._tip = None
-
-
-class Switch(tk.Frame):
-    """Compact iOS-style switch with a ttk.Checkbutton-compatible surface."""
-
-    def __init__(
-        self,
-        master: tk.Widget,
-        *,
-        text: str,
-        variable: tk.BooleanVar,
-        command: Callable[[], None] | None = None,
-        font: tuple[str, int] | tuple[str, int, str] | None = None,
-    ) -> None:
-        super().__init__(master, background=SURFACE, bd=0, highlightthickness=0, takefocus=1)
-        self._text = text
-        self._variable = variable
-        self._command = command
-        self._font = font or ("", DEFAULT_FONT_SIZE)
-        self._disabled = False
-        self._width = 48
-        self._height = 28
-
-        self._label = tk.Label(self, text=text, font=self._font, anchor="w", bd=0)
-        self._label.pack(side="left", padx=(0, 8))
-        self._canvas = tk.Canvas(self, width=self._width, height=self._height, bd=0, highlightthickness=0)
-        self._canvas.pack(side="left")
-
-        tk.Frame.bind(self, "<Button-1>", self._on_click, add="+")
-        self._label.bind("<Button-1>", self._on_click, add="+")
-        self._canvas.bind("<Button-1>", self._on_click, add="+")
-        tk.Frame.bind(self, "<space>", self._on_key, add="+")
-        tk.Frame.bind(self, "<Return>", self._on_key, add="+")
-        self._variable.trace_add("write", lambda *_: self._draw())
-        self.restyle()
-
-    def bind(self, sequence=None, func=None, add=None):  # type: ignore[override]
-        result = super().bind(sequence, func, add)
-        if sequence is not None and func is not None and hasattr(self, "_label"):
-            self._label.bind(sequence, func, add)
-            self._canvas.bind(sequence, func, add)
-        return result
-
-    def set_text(self, text: str) -> None:
-        self._text = text
-        self._label.configure(text=self._text)
-
-    def set_font(self, font: tuple[str, int] | tuple[str, int, str]) -> None:
-        self._font = font
-        self._label.configure(font=self._font)
-
-    def state(self, states: list[str] | tuple[str, ...] | None = None):
-        if states is None:
-            return ("disabled",) if self._disabled else ()
-        if "disabled" in states:
-            self._disabled = True
-        if "!disabled" in states:
-            self._disabled = False
-        self.restyle()
-        return ("disabled",) if self._disabled else ()
-
-    def restyle(self) -> None:
-        cursor = "arrow" if self._disabled else "hand2"
-        tk.Frame.configure(self, background=SURFACE, cursor=cursor)
-        self._label.configure(
-            background=SURFACE,
-            foreground=DISABLED_FG if self._disabled else TEXT,
-            cursor=cursor,
-            font=self._font,
-        )
-        self._canvas.configure(background=SURFACE, cursor=cursor)
-        self._draw()
-
-    def _on_click(self, _event=None) -> str:
-        self.focus_set()
-        if self._disabled:
-            return "break"
-        self._variable.set(not bool(self._variable.get()))
-        if self._command is not None:
-            self._command()
-        return "break"
-
-    def _on_key(self, _event=None) -> str:
-        return self._on_click()
-
-    def _draw(self) -> None:
-        selected = bool(self._variable.get())
-        track = ACCENT if selected and not self._disabled else SURFACE_2
-        if self._disabled:
-            track = DISABLED_BG
-        outline = ACCENT_DARK if selected and not self._disabled else BORDER
-        knob = DISABLED_FG if self._disabled else "#ffffff"
-
-        self._canvas.delete("all")
-        pad = 2
-        radius = (self._height - pad * 2) // 2
-        left = pad
-        top = pad
-        right = self._width - pad
-        bottom = self._height - pad
-        self._canvas.create_oval(left, top, left + radius * 2, bottom, fill=track, outline=outline, width=1)
-        self._canvas.create_oval(right - radius * 2, top, right, bottom, fill=track, outline=outline, width=1)
-        self._canvas.create_rectangle(left + radius, top, right - radius, bottom, fill=track, outline=track)
-        knob_radius = radius - 2
-        knob_center = right - radius if selected else left + radius
-        self._canvas.create_oval(
-            knob_center - knob_radius,
-            top + 2,
-            knob_center + knob_radius,
-            bottom - 2,
-            fill=knob,
-            outline=knob,
-        )
-
-
-class WaveMeter(tk.Canvas):
-    """Animated wave display for recording and analysis states."""
-
-    def __init__(self, master: tk.Widget, *, height: int = 42) -> None:
-        super().__init__(master, height=height, highlightthickness=1, bd=0, relief="flat")
-        self.mode = "idle"
-        self.level = 0.0
-        self.progress = 0.0
-        self.phase = 0.0
-        self.configure(highlightbackground=BORDER, background=SURFACE_2)
-        self.bind("<Configure>", lambda _event: self.draw())
-
-    def set_mode(self, mode: str) -> None:
-        self.mode = mode
-        self.draw()
-
-    def set_level(self, level: float) -> None:
-        self.level = max(0.0, min(level, 1.0))
-
-    def set_progress(self, progress: float) -> None:
-        self.progress = max(0.0, min(progress, 1.0))
-
-    def restyle(self) -> None:
-        self.configure(highlightbackground=BORDER, background=SURFACE_2)
-        self.draw()
-
-    def tick(self) -> None:
-        if self.mode in {"recording", "analysis"}:
-            self.phase += 0.24 if self.mode == "recording" else 0.16
-        self.draw()
-
-    def draw(self) -> None:
-        self.delete("all")
-        width = max(1, self.winfo_width())
-        height = max(1, self.winfo_height())
-        self.create_rectangle(0, 0, width, height, fill=SURFACE_2, outline=BORDER)
-        if self.mode == "idle":
-            self.create_line(12, height / 2, width - 12, height / 2, fill=BORDER, width=2)
-            return
-
-        level = self.level if self.mode == "recording" else 0.72
-        bars = _wave_bar_heights(level, self.phase)
-        gap = 3
-        usable = max(1, width - 24)
-        bar_w = max(2, (usable - gap * (len(bars) - 1)) / len(bars))
-        x = 12
-        for index, value in enumerate(bars):
-            if self.mode == "analysis" and index / max(1, len(bars) - 1) > max(self.progress, 0.08):
-                color = BORDER
-            else:
-                color = ACCENT if index % 3 else ACCENT_DARK
-            bar_h = max(4, value * (height - 12))
-            y0 = (height - bar_h) / 2
-            self.create_rectangle(x, y0, x + bar_w, y0 + bar_h, fill=color, outline=color)
-            x += bar_w + gap
 
 
 def list_input_devices() -> list[tuple[str, int | None]]:
@@ -1039,8 +823,10 @@ class App:
             inner,
             text=self._tr("dark"),
             variable=self._dark_var,
+            colors=_ui_colors,
             command=self._on_theme_change,
             font=self._font(),
+            default_font_size=DEFAULT_FONT_SIZE,
         )
         self.dark_check.grid(row=1, column=4, sticky="e", padx=(8, 10), pady=(8, 0))
         self.language_combo = ttk.Combobox(
@@ -1085,8 +871,10 @@ class App:
             source,
             text=self._tr("mic_capture"),
             variable=self._mic_capture_var,
+            colors=_ui_colors,
             command=self._on_mic_capture_change,
             font=self._font(),
+            default_font_size=DEFAULT_FONT_SIZE,
         )
         self.mic_check.grid(row=2, column=0, columnspan=3, sticky="w", pady=(4, 4))
         Tooltip(self.mic_check, TOOLTIP_MIC_CAPTURE)
@@ -1099,7 +887,14 @@ class App:
             textvariable=self._llm_model_var,
         )
         self.llm_combo.grid(row=1, column=1, columnspan=2, sticky="ew", padx=(8, 4), pady=(0, 6))
-        self.nr_check = Switch(source, text=self._tr("noise_reduce"), variable=self._nr_var, font=self._font())
+        self.nr_check = Switch(
+            source,
+            text=self._tr("noise_reduce"),
+            variable=self._nr_var,
+            colors=_ui_colors,
+            font=self._font(),
+            default_font_size=DEFAULT_FONT_SIZE,
+        )
         self.nr_check.grid(row=3, column=0, columnspan=3, sticky="w")
         Tooltip(self.nr_check, TOOLTIP_NR)
 
@@ -1129,7 +924,14 @@ class App:
         )
         self.record_button.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
         Tooltip(self.record_button, TOOLTIP_RECORD)
-        self.live_check = Switch(controls, text=self._tr("live"), variable=self._live_var, font=self._font())
+        self.live_check = Switch(
+            controls,
+            text=self._tr("live"),
+            variable=self._live_var,
+            colors=_ui_colors,
+            font=self._font(),
+            default_font_size=DEFAULT_FONT_SIZE,
+        )
         self.live_check.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 6))
         Tooltip(self.live_check, TOOLTIP_LIVE)
         self._update_mic_capture_controls()
@@ -1147,7 +949,7 @@ class App:
         meter_row.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         self.meter_caption = ttk.Label(meter_row, text="", style="Hint.TLabel", width=16)
         self.meter_caption.pack(side="left")
-        self.wave = WaveMeter(meter_row)
+        self.wave = WaveMeter(meter_row, colors=_ui_colors)
         self.wave.pack(side="left", fill="x", expand=True, padx=(6, 0))
 
         # --- numbered workflow actions ---
