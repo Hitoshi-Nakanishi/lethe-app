@@ -18,7 +18,7 @@ sending private audio to an external service.
 
 ## Quick Start
 
-Install [Task](https://taskfile.dev/) and Python 3.11 or newer, then run:
+Install [Task](https://taskfile.dev/) and Python 3.14.4, then run:
 
 ```sh
 task setup

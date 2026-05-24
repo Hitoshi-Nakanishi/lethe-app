@@ -4,7 +4,7 @@ Japanese version: [setup.ja.md](setup.ja.md)
 
 ## Requirements
 
-- Python 3.11 or newer
+- Python 3.14.4 (the standard project environment in `.python-version`)
 - Tk-enabled Python
 - Several GB of free disk space for Whisper model downloads
 - Optional: Ollama for transcript correction and minutes generation

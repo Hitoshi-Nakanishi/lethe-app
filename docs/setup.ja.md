@@ -4,7 +4,7 @@ English version: [setup.md](setup.md)
 
 ## 必要なもの
 
-- Python 3.11 以上
+- Python 3.14.4 (`.python-version` で指定している標準環境)
 - Tk が有効な Python
 - Whisper モデルを保存するための数 GB の空き容量
 - 任意: 校正と議事録生成に Ollama

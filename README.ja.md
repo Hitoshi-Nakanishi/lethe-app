@@ -18,7 +18,7 @@ English documentation: [README.md](README.md)
 
 ## クイックスタート
 
-[Task](https://taskfile.dev/) と Python 3.11 以上を入れてから実行します。
+[Task](https://taskfile.dev/) と Python 3.14.4 を入れてから実行します。
 
 ```sh
 task setup
