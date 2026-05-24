@@ -31,6 +31,7 @@ import json
 import os
 import queue
 import re
+import sys
 import threading
 import time
 import tkinter as tk
@@ -69,6 +70,7 @@ APP_TAGLINE = "録音・文字起こし・議事録"
 DEFAULT_FONT_SIZE = 11
 MIN_FONT_SIZE = 9
 MAX_FONT_SIZE = 18
+UI_FONT_FAMILY = "Segoe UI" if sys.platform.startswith("win") else "SF Pro Text" if sys.platform == "darwin" else "Noto Sans"
 
 SAMPLE_RATE = 44100
 CHANNELS = 1
@@ -602,7 +604,7 @@ class App:
             borderwidth=1,
             relief="flat",
             focuscolor=SURFACE,
-            padding=(11, 6),
+            padding=(12, 7),
             font=self._font(),
         )
         style.map(
@@ -620,8 +622,8 @@ class App:
                 borderwidth=1,
                 relief="flat",
                 focuscolor=base,
-                padding=(13, 7),
-                font=self._font(0, "bold"),
+                padding=(15, 9),
+                font=self._font(1, "bold"),
             )
             style.map(
                 f"{name}.TButton",
@@ -638,7 +640,7 @@ class App:
             borderwidth=1,
             relief="flat",
             focuscolor=ACCENT_SOFT,
-            padding=(11, 6),
+            padding=(12, 7),
             font=self._font(0, "bold"),
         )
         style.map(
@@ -662,8 +664,8 @@ class App:
             selectforeground=TEXT,
             relief="flat",
             borderwidth=1,
-            padding=(8, 5),
-            arrowsize=14,
+            padding=(9, 6),
+            arrowsize=12,
         )
         style.map(
             "TCombobox",
@@ -715,7 +717,7 @@ class App:
 
     def _font(self, delta: int = 0, weight: str | None = None) -> tuple[str, int] | tuple[str, int, str]:
         size = max(MIN_FONT_SIZE, self._font_size + delta)
-        return ("", size, weight) if weight else ("", size)
+        return (UI_FONT_FAMILY, size, weight) if weight else (UI_FONT_FAMILY, size)
 
     def _on_theme_change(self, _event=None) -> None:
         _apply_palette(self._theme_key(), self._dark_var.get())
@@ -734,6 +736,7 @@ class App:
         self.tagline_label.config(text=f"  {self._tr('tagline')}")
         self.dark_check.set_text(self._tr("dark"))
         self.input_label.config(text=self._tr("input"))
+        self.refresh_button.config(text=self._tr("refresh_input"))
         self._refresh_device_labels()
         self.mic_check.set_text(self._tr("mic_capture"))
         self.nr_check.set_text(self._tr("noise_reduce"))
@@ -862,10 +865,10 @@ class App:
         source.columnconfigure(1, weight=1)
         self.input_label = ttk.Label(source, text=self._tr("input"), style="Card.TLabel")
         self.input_label.grid(row=0, column=0, sticky="w", pady=(0, 6))
-        self.device_combo = ttk.Combobox(source, state="readonly", width=28)
-        self.device_combo.grid(row=0, column=1, sticky="ew", padx=(8, 4), pady=(0, 6))
+        self.device_combo = ttk.Combobox(source, state="readonly", width=26)
+        self.device_combo.grid(row=0, column=1, sticky="w", padx=(8, 4), pady=(0, 6))
         self.device_combo.bind("<<ComboboxSelected>>", self._on_device_change)
-        self.refresh_button = ttk.Button(source, text="↻", width=3, command=self.refresh_devices)
+        self.refresh_button = ttk.Button(source, text=self._tr("refresh_input"), width=8, command=self.refresh_devices)
         self.refresh_button.grid(row=0, column=2, sticky="w", pady=(0, 6))
         self.mic_check = Switch(
             source,
@@ -882,11 +885,11 @@ class App:
         self.llm_combo = ttk.Combobox(
             source,
             state="readonly",
-            width=18,
+            width=22,
             values=self._llm_models,
             textvariable=self._llm_model_var,
         )
-        self.llm_combo.grid(row=1, column=1, columnspan=2, sticky="ew", padx=(8, 4), pady=(0, 6))
+        self.llm_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=(8, 4), pady=(0, 6))
         self.nr_check = Switch(
             source,
             text=self._tr("noise_reduce"),
