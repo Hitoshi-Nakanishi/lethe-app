@@ -61,6 +61,16 @@ def test_apply_palette_switches_theme_globals():
     assert lethe.BG == lethe.THEMES["midnight"]["light"]["bg"]
 
 
+def test_wave_bar_heights_are_normalized_and_react_to_level():
+    quiet = lethe._wave_bar_heights(0.0, 0.0, count=8)
+    loud = lethe._wave_bar_heights(1.0, 0.0, count=8)
+
+    assert len(quiet) == 8
+    assert len(loud) == 8
+    assert all(0.0 < value <= 1.0 for value in quiet + loud)
+    assert sum(loud) > sum(quiet)
+
+
 def test_player_load_duration_and_position():
     player = Player()
     assert not player.has_audio
