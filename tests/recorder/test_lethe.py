@@ -8,9 +8,10 @@ called here.
 
 from __future__ import annotations
 
+import json
+import time
 import wave
 import zipfile
-import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -26,6 +27,7 @@ from recorder.lethe import (
     _is_connection_error,
     _parse_leading_timestamp,
     _safe_filename_part,
+    _suggested_dataset_name,
     _suggested_mp3_filename,
     describe_error,
     text_for,
@@ -75,6 +77,21 @@ def test_suggested_mp3_filename_sanitizes_parts_and_adds_extension(monkeypatch):
     now = time.mktime((2026, 5, 25, 9, 8, 0, 0, 0, -1))
 
     assert _suggested_mp3_filename(now) == "Client_A_Planning_2026_05_25_09_08.mp3"
+
+
+def test_suggested_dataset_name_uses_configured_template(monkeypatch):
+    monkeypatch.setattr(
+        lethe.settings_store,
+        "filename_config",
+        lambda: {
+            "dataset_template": "{timestamp}_{meeting_name}_dataset",
+            "meeting_name": "Design Review",
+            "timestamp_format": "%Y%m%d_%H%M",
+        },
+    )
+    now = time.mktime((2026, 5, 25, 9, 8, 0, 0, 0, -1))
+
+    assert _suggested_dataset_name(now) == "20260525_0908_Design_Review_dataset"
 
 
 def test_safe_filename_part_falls_back_when_empty():
@@ -225,3 +242,43 @@ def test_open_session_without_audio_clears_previous_playback(tmp_path, monkeypat
     assert player.has_audio is False
     assert playback_enabled == [False]
     assert statuses[-1] == (f"セッションを読み込みました · {Path(bundle).name}", "ready")
+
+
+def test_export_dataset_writes_one_to_one_folder_mapping(tmp_path, monkeypatch):
+    folder = tmp_path / "20260525_0908_standup"
+    monkeypatch.setattr(lethe.filedialog, "asksaveasfilename", lambda **_kwargs: str(folder))
+    infos: list[tuple[str, str]] = []
+    monkeypatch.setattr(lethe.messagebox, "showinfo", lambda title, message: infos.append((title, message)))
+
+    class DummyText:
+        def __init__(self, value: str) -> None:
+            self.value = value
+
+        def get(self, *_args) -> str:
+            return self.value
+
+    app = SimpleNamespace(
+        transcript=DummyText("[00:00] hello\n"),
+        notes_text=DummyText("# Notes\n- Alice\n"),
+        recorder=SimpleNamespace(has_recording=False),
+        _player=SimpleNamespace(has_audio=True, duration=12.34),
+        _write_dataset_audio=lambda path: Path(path).write_bytes(b"mp3"),
+        _tr=lambda key, **kwargs: text_for("en", key, **kwargs),
+    )
+
+    App.export_dataset(app)
+
+    stem = folder.name
+    audio = folder / f"{stem}.mp3"
+    transcript = folder / f"{stem}.transcript.md"
+    notes = folder / f"{stem}.notes.md"
+    manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+    assert audio.read_bytes() == b"mp3"
+    assert transcript.read_text(encoding="utf-8") == "[00:00] hello\n"
+    assert notes.read_text(encoding="utf-8") == "# Notes\n- Alice\n"
+    assert manifest["path_mapping"] == {
+        "audio": audio.name,
+        "transcript": transcript.name,
+        "notes": notes.name,
+    }
+    assert infos[-1] == ("Saved", f"Dataset saved to:\n{folder}")

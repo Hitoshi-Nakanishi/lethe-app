@@ -30,6 +30,7 @@ DEFAULT_CONFIG: dict = {
         "notes_dir": "",
         "minutes_dir": "",
         "sessions_dir": "",
+        "datasets_dir": "",
     },
     "models": {
         "whisper_live_model": "medium",
@@ -41,6 +42,7 @@ DEFAULT_CONFIG: dict = {
     },
     "filenames": {
         "mp3_template": "{timestamp}_{meeting_name}.mp3",
+        "dataset_template": "{timestamp}_{meeting_name}",
         "meeting_name": "meeting",
         "timestamp_format": "%Y%m%d_%H%M",
     },

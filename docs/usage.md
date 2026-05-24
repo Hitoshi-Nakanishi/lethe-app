@@ -60,6 +60,21 @@ notes.txt
 meta.json
 ```
 
+## Datasets
+
+Use **File -> Export dataset...** to write analysis-ready files into one
+folder. Lethe creates a 1:1 path mapping with the same stem:
+
+```text
+<dataset>/<dataset>.mp3
+<dataset>/<dataset>.transcript.md
+<dataset>/<dataset>.notes.md
+<dataset>/manifest.json
+```
+
+`manifest.json` records the relative paths for the audio, transcript, and notes
+so downstream analyzers can pick up the dataset without guessing filenames.
+
 ## Save Locations
 
 Default save/open folders are configured in `default.toml` under `[paths]`.
@@ -69,6 +84,8 @@ The default MP3 filename shown in the save dialog is configured in
 `default.toml` under `[filenames]`. The built-in pattern is
 `YYYYMMDD_HHMM_<meeting_name>.mp3`, and the suggested name remains editable in
 the save dialog.
+The default dataset folder name uses the same timestamp and meeting-name
+placeholders via `dataset_template`.
 
 ## Themes
 

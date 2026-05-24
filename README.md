@@ -47,6 +47,8 @@ task models
 - Use notes as authoritative spellings for names, proper nouns, and jargon.
 - Generate Markdown minutes through a local Ollama model.
 - Save sessions containing audio, transcript, notes, and metadata.
+- Export analysis-ready dataset folders with MP3 audio, transcript Markdown,
+  notes Markdown, and a manifest path mapping.
 
 ## Documentation
 
