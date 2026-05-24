@@ -258,6 +258,7 @@ UI_TEXT = {
         "save_mp3_menu": "MP3 を保存…",
         "dark": "Dark",
         "input": "入力",
+        "system_default_input": "システム既定",
         "mic_capture": "マイク音声を取る",
         "noise_reduce": "ノイズ除去",
         "record": LABEL_RECORD,
@@ -339,6 +340,7 @@ UI_TEXT = {
         "save_mp3_menu": "Save MP3...",
         "dark": "Dark",
         "input": "Input",
+        "system_default_input": "System default",
         "mic_capture": "Capture microphone",
         "noise_reduce": "Noise reduction",
         "record": "●  Record",
@@ -1042,6 +1044,7 @@ class App:
         self.tagline_label.config(text=f"  {self._tr('tagline')}")
         self.dark_check.config(text=self._tr("dark"))
         self.input_label.config(text=self._tr("input"))
+        self._refresh_device_labels()
         self.mic_check.config(text=self._tr("mic_capture"))
         self.nr_check.config(text=self._tr("noise_reduce"))
         self.record_button.config(text=self._tr("stop" if self.is_recording else "record"))
@@ -1477,7 +1480,7 @@ class App:
 
     def refresh_devices(self) -> None:
         self._devices = list_input_devices()
-        self.device_combo["values"] = [label for label, _ in self._devices]
+        self._refresh_device_labels()
         if self._device_index is not None:
             for i, (_label, idx) in enumerate(self._devices):
                 if idx == self._device_index:
@@ -1487,6 +1490,18 @@ class App:
         self.device_combo.current(0)
         self._device_index = None
         self._update_mic_capture_controls()
+
+    def _refresh_device_labels(self) -> None:
+        if not hasattr(self, "device_combo"):
+            return
+        current = self.device_combo.current()
+        values = [
+            self._tr("system_default_input") if i == 0 and idx is None else label
+            for i, (label, idx) in enumerate(self._devices)
+        ]
+        self.device_combo["values"] = values
+        if 0 <= current < len(values):
+            self.device_combo.current(current)
 
     def _on_mic_capture_change(self) -> None:
         self._update_mic_capture_controls()
