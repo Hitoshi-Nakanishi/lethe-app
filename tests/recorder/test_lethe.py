@@ -147,6 +147,7 @@ def test_text_for_switches_between_japanese_and_english():
     assert text_for("ja", "record") == "●  録音開始"
     assert text_for("en", "record") == "●  Record"
     assert text_for("en", "system_default_input") == "System default"
+    assert text_for("en", "refresh_input") == "Refresh"
     assert text_for("ja", "mic_capture") == "マイク音声を取る"
     assert text_for("en", "mic_off_tag") == "Mic off"
     assert text_for("missing", "record") == "●  録音開始"
