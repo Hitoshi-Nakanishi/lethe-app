@@ -334,6 +334,119 @@ class Tooltip:
             self._tip = None
 
 
+class Switch(tk.Frame):
+    """Compact iOS-style switch with a ttk.Checkbutton-compatible surface."""
+
+    def __init__(
+        self,
+        master: tk.Widget,
+        *,
+        text: str,
+        variable: tk.BooleanVar,
+        command: Callable[[], None] | None = None,
+        font: tuple[str, int] | tuple[str, int, str] | None = None,
+    ) -> None:
+        super().__init__(master, background=SURFACE, bd=0, highlightthickness=0, takefocus=1)
+        self._text = text
+        self._variable = variable
+        self._command = command
+        self._font = font or ("", DEFAULT_FONT_SIZE)
+        self._disabled = False
+        self._width = 48
+        self._height = 28
+
+        self._label = tk.Label(self, text=text, font=self._font, anchor="w", bd=0)
+        self._label.pack(side="left", padx=(0, 8))
+        self._canvas = tk.Canvas(self, width=self._width, height=self._height, bd=0, highlightthickness=0)
+        self._canvas.pack(side="left")
+
+        tk.Frame.bind(self, "<Button-1>", self._on_click, add="+")
+        self._label.bind("<Button-1>", self._on_click, add="+")
+        self._canvas.bind("<Button-1>", self._on_click, add="+")
+        tk.Frame.bind(self, "<space>", self._on_key, add="+")
+        tk.Frame.bind(self, "<Return>", self._on_key, add="+")
+        self._variable.trace_add("write", lambda *_: self._draw())
+        self.restyle()
+
+    def bind(self, sequence=None, func=None, add=None):  # type: ignore[override]
+        result = super().bind(sequence, func, add)
+        if sequence is not None and func is not None and hasattr(self, "_label"):
+            self._label.bind(sequence, func, add)
+            self._canvas.bind(sequence, func, add)
+        return result
+
+    def set_text(self, text: str) -> None:
+        self._text = text
+        self._label.configure(text=self._text)
+
+    def set_font(self, font: tuple[str, int] | tuple[str, int, str]) -> None:
+        self._font = font
+        self._label.configure(font=self._font)
+
+    def state(self, states: list[str] | tuple[str, ...] | None = None):
+        if states is None:
+            return ("disabled",) if self._disabled else ()
+        if "disabled" in states:
+            self._disabled = True
+        if "!disabled" in states:
+            self._disabled = False
+        self.restyle()
+        return ("disabled",) if self._disabled else ()
+
+    def restyle(self) -> None:
+        cursor = "arrow" if self._disabled else "hand2"
+        tk.Frame.configure(self, background=SURFACE, cursor=cursor)
+        self._label.configure(
+            background=SURFACE,
+            foreground=DISABLED_FG if self._disabled else TEXT,
+            cursor=cursor,
+            font=self._font,
+        )
+        self._canvas.configure(background=SURFACE, cursor=cursor)
+        self._draw()
+
+    def _on_click(self, _event=None) -> str:
+        self.focus_set()
+        if self._disabled:
+            return "break"
+        self._variable.set(not bool(self._variable.get()))
+        if self._command is not None:
+            self._command()
+        return "break"
+
+    def _on_key(self, _event=None) -> str:
+        return self._on_click()
+
+    def _draw(self) -> None:
+        selected = bool(self._variable.get())
+        track = ACCENT if selected and not self._disabled else SURFACE_2
+        if self._disabled:
+            track = DISABLED_BG
+        outline = ACCENT_DARK if selected and not self._disabled else BORDER
+        knob = DISABLED_FG if self._disabled else "#ffffff"
+
+        self._canvas.delete("all")
+        pad = 2
+        radius = (self._height - pad * 2) // 2
+        left = pad
+        top = pad
+        right = self._width - pad
+        bottom = self._height - pad
+        self._canvas.create_oval(left, top, left + radius * 2, bottom, fill=track, outline=outline, width=1)
+        self._canvas.create_oval(right - radius * 2, top, right, bottom, fill=track, outline=outline, width=1)
+        self._canvas.create_rectangle(left + radius, top, right - radius, bottom, fill=track, outline=track)
+        knob_radius = radius - 2
+        knob_center = right - radius if selected else left + radius
+        self._canvas.create_oval(
+            knob_center - knob_radius,
+            top + 2,
+            knob_center + knob_radius,
+            bottom - 2,
+            fill=knob,
+            outline=knob,
+        )
+
+
 class WaveMeter(tk.Canvas):
     """Animated wave display for recording and analysis states."""
 
@@ -746,19 +859,6 @@ class App:
             bordercolor=[("disabled", DISABLED_BG)],
         )
 
-        style.configure(
-            "TCheckbutton",
-            background=SURFACE_2,
-            foreground=TEXT,
-            focuscolor=SURFACE,
-            indicatorcolor=SURFACE_2,
-        )
-        style.map(
-            "TCheckbutton",
-            background=[("active", SURFACE)],
-            foreground=[("disabled", DISABLED_FG)],
-            indicatorcolor=[("selected", ACCENT), ("active", ACCENT_SOFT)],
-        )
         style.configure("TSeparator", background=BORDER)
         style.configure(
             "TCombobox",
@@ -843,13 +943,13 @@ class App:
     def _apply_language(self) -> None:
         self.root.title(f"{APP_NAME} — {self._tr('tagline')}")
         self.tagline_label.config(text=f"  {self._tr('tagline')}")
-        self.dark_check.config(text=self._tr("dark"))
+        self.dark_check.set_text(self._tr("dark"))
         self.input_label.config(text=self._tr("input"))
         self._refresh_device_labels()
-        self.mic_check.config(text=self._tr("mic_capture"))
-        self.nr_check.config(text=self._tr("noise_reduce"))
+        self.mic_check.set_text(self._tr("mic_capture"))
+        self.nr_check.set_text(self._tr("noise_reduce"))
         self.record_button.config(text=self._tr("stop" if self.is_recording else "record"))
-        self.live_check.config(text=self._tr("live"))
+        self.live_check.set_text(self._tr("live"))
         self.export_mp3_button.config(text=self._tr("save_mp3"))
         self.open_button.config(text=self._tr("open_audio"))
         self.transcript_title.config(text=self._tr("transcript"))
@@ -885,6 +985,11 @@ class App:
                 )
         if hasattr(self, "wave"):
             self.wave.restyle()
+        for widget_name in ("dark_check", "mic_check", "nr_check", "live_check"):
+            widget = getattr(self, widget_name, None)
+            if widget is not None:
+                widget.set_font(self._font())
+                widget.restyle()
 
     def _restyle_direct_fonts(self) -> None:
         if hasattr(self, "status_icon"):
@@ -925,7 +1030,13 @@ class App:
         self.status = tk.Label(self.status_banner, text=self._tr("status_ready"), font=self._font(0, "bold"))
         self.status.pack(side="left")
         self._set_status(self._tr("status_ready"), "ready")
-        self.dark_check = ttk.Checkbutton(inner, text=self._tr("dark"), variable=self._dark_var, command=self._on_theme_change)
+        self.dark_check = Switch(
+            inner,
+            text=self._tr("dark"),
+            variable=self._dark_var,
+            command=self._on_theme_change,
+            font=self._font(),
+        )
         self.dark_check.grid(row=1, column=4, sticky="e", padx=(8, 10), pady=(8, 0))
         self.language_combo = ttk.Combobox(
             inner,
@@ -954,7 +1065,6 @@ class App:
         source = ttk.Frame(parent, style="Card.TFrame")
         source.pack(fill="x", padx=PAD_X, pady=(PAD_Y, 4))
         source.columnconfigure(1, weight=1)
-        source.columnconfigure(4, weight=1)
         self.input_label = ttk.Label(source, text=self._tr("input"), style="Card.TLabel")
         self.input_label.grid(row=0, column=0, sticky="w", pady=(0, 6))
         self.device_combo = ttk.Combobox(source, state="readonly", width=28)
@@ -962,13 +1072,14 @@ class App:
         self.device_combo.bind("<<ComboboxSelected>>", self._on_device_change)
         self.refresh_button = ttk.Button(source, text="↻", width=3, command=self.refresh_devices)
         self.refresh_button.grid(row=0, column=2, sticky="w", pady=(0, 6))
-        self.mic_check = ttk.Checkbutton(
+        self.mic_check = Switch(
             source,
             text=self._tr("mic_capture"),
             variable=self._mic_capture_var,
             command=self._on_mic_capture_change,
+            font=self._font(),
         )
-        self.mic_check.grid(row=0, column=4, sticky="e", pady=(0, 6))
+        self.mic_check.grid(row=2, column=0, columnspan=3, sticky="w", pady=(4, 4))
         Tooltip(self.mic_check, TOOLTIP_MIC_CAPTURE)
         ttk.Label(source, text="LLM", style="Card.TLabel").grid(row=1, column=0, sticky="w")
         self.llm_combo = ttk.Combobox(
@@ -979,8 +1090,8 @@ class App:
             textvariable=self._llm_model_var,
         )
         self.llm_combo.grid(row=1, column=1, columnspan=2, sticky="ew", padx=(8, 4), pady=(0, 6))
-        self.nr_check = ttk.Checkbutton(source, text=self._tr("noise_reduce"), variable=self._nr_var)
-        self.nr_check.grid(row=2, column=0, columnspan=5, sticky="w")
+        self.nr_check = Switch(source, text=self._tr("noise_reduce"), variable=self._nr_var, font=self._font())
+        self.nr_check.grid(row=3, column=0, columnspan=3, sticky="w")
         Tooltip(self.nr_check, TOOLTIP_NR)
         self.refresh_devices()
         self._update_mic_capture_controls()
@@ -995,7 +1106,7 @@ class App:
         )
         self.record_button.grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 6))
         Tooltip(self.record_button, TOOLTIP_RECORD)
-        self.live_check = ttk.Checkbutton(controls, text=self._tr("live"), variable=self._live_var)
+        self.live_check = Switch(controls, text=self._tr("live"), variable=self._live_var, font=self._font())
         self.live_check.grid(row=0, column=1, sticky="w", padx=(6, 0), pady=(0, 6))
         Tooltip(self.live_check, TOOLTIP_LIVE)
         self._update_mic_capture_controls()
