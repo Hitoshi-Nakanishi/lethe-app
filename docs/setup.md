@@ -71,9 +71,10 @@ generation require it.
 ## Configuration
 
 Edit `default.toml` to choose where Lethe stores settings, temporary WAV files,
-the initial folders used by save/open dialogs, the default MP3 filename pattern,
-and the LLM model choices shown in the app. Set `LETHE_CONFIG` to point to
-another TOML file when you want a machine-local config outside the repo.
+the shared dataset/output folder used by save/open dialogs, the default MP3
+filename pattern, and the LLM model choices shown in the app. Set
+`LETHE_CONFIG` to point to another TOML file when you want a machine-local
+config outside the repo.
 
 Initial UI defaults are also configurable. They apply before a value is saved
 in `settings.json`; after that, the user's saved choice wins. For example:

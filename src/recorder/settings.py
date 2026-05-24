@@ -25,11 +25,6 @@ DEFAULT_CONFIG: dict = {
     "paths": {
         "settings_dir": "~/.lethe",
         "temp_dir": "",
-        "audio_dir": "",
-        "transcripts_dir": "",
-        "notes_dir": "",
-        "minutes_dir": "",
-        "sessions_dir": "",
         "datasets_dir": "",
     },
     "models": {

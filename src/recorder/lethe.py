@@ -1408,7 +1408,7 @@ class App:
             filetypes=[("MP3 音声", "*.mp3"), ("すべてのファイル", "*.*")],
             initialfile=_suggested_mp3_filename(),
             title=self._tr("save_recording_title"),
-            **_initialdir_option("audio_dir"),
+            **_initialdir_option("datasets_dir"),
         )
         if not path:
             return
@@ -1429,7 +1429,7 @@ class App:
             filetypes=[("テキスト", "*.txt"), ("Markdown", "*.md"), ("すべてのファイル", "*.*")],
             initialfile="transcript.txt",
             title=self._tr("save_transcript_title"),
-            **_initialdir_option("transcripts_dir"),
+            **_initialdir_option("datasets_dir"),
         )
         if not path:
             return
@@ -1495,7 +1495,7 @@ class App:
             filetypes=[("テキスト", "*.txt"), ("Markdown", "*.md"), ("すべてのファイル", "*.*")],
             initialfile="notes.txt",
             title=self._tr("save_notes_title"),
-            **_initialdir_option("notes_dir"),
+            **_initialdir_option("datasets_dir"),
         )
         if not path:
             return
@@ -1509,7 +1509,7 @@ class App:
         path = filedialog.askopenfilename(
             filetypes=[("テキスト", "*.txt"), ("Markdown", "*.md"), ("すべてのファイル", "*.*")],
             title=self._tr("load_notes_title"),
-            **_initialdir_option("notes_dir"),
+            **_initialdir_option("datasets_dir"),
         )
         if not path:
             return
@@ -1530,7 +1530,7 @@ class App:
         path = filedialog.askopenfilename(
             title=self._tr("open_audio_title"),
             filetypes=AUDIO_FILETYPES,
-            **_initialdir_option("audio_dir"),
+            **_initialdir_option("datasets_dir"),
         )
         if not path:
             return
@@ -1744,7 +1744,7 @@ class App:
                 initialfile="minutes.md",
                 title=self._tr("save_minutes_title"),
                 parent=win,
-                **_initialdir_option("minutes_dir"),
+                **_initialdir_option("datasets_dir"),
             )
             if path:
                 Path(path).write_text(text.get("1.0", "end").rstrip() + "\n", encoding="utf-8")
@@ -1765,7 +1765,7 @@ class App:
             filetypes=[("セッション", "*.zip"), ("すべてのファイル", "*.*")],
             initialfile="session.zip",
             title=self._tr("save_session_title"),
-            **_initialdir_option("sessions_dir"),
+            **_initialdir_option("datasets_dir"),
         )
         if not path:
             return
@@ -1797,7 +1797,7 @@ class App:
         path = filedialog.askopenfilename(
             title=self._tr("open_session_title"),
             filetypes=[("セッション", "*.zip"), ("すべてのファイル", "*.*")],
-            **_initialdir_option("sessions_dir"),
+            **_initialdir_option("datasets_dir"),
         )
         if not path:
             return
