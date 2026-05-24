@@ -215,9 +215,65 @@ def _suggested_mp3_filename(now: float | None = None) -> str:
     return filename if filename.lower().endswith(".mp3") else f"{filename}.mp3"
 
 
+def _suggested_dataset_name(now: float | None = None) -> str:
+    config = settings_store.filename_config()
+    timestamp_format = str(config.get("timestamp_format") or "%Y%m%d_%H%M")
+    clock = time.localtime(now) if now is not None else time.localtime()
+    try:
+        timestamp = time.strftime(timestamp_format, clock)
+    except ValueError:
+        timestamp = time.strftime("%Y%m%d_%H%M", clock)
+    values = {
+        "timestamp": _safe_filename_part(timestamp, fallback=time.strftime("%Y%m%d_%H%M", clock)),
+        "meeting_name": _safe_filename_part(config.get("meeting_name"), fallback="meeting"),
+    }
+    template = str(config.get("dataset_template") or "{timestamp}_{meeting_name}")
+    try:
+        name = template.format(**values)
+    except (KeyError, IndexError, ValueError):
+        name = "{timestamp}_{meeting_name}".format(**values)
+    return _safe_filename_part(name, fallback="dataset")
+
+
 def _initialdir_option(key: str) -> dict[str, str]:
     path = settings_store.configured_path(key, create=True)
     return {"initialdir": str(path)} if path is not None else {}
+
+
+def _encode_mp3_float32(path: str | Path, audio_f32: np.ndarray, sample_rate: int) -> None:
+    import lameenc
+
+    audio = np.clip(np.asarray(audio_f32, dtype=np.float32).reshape(-1) * 32768.0, -32768, 32767).astype(np.int16)
+    encoder = lameenc.Encoder()
+    encoder.set_bit_rate(MP3_BITRATE)
+    encoder.set_in_sample_rate(sample_rate)
+    encoder.set_channels(CHANNELS)
+    encoder.set_quality(2)
+    mp3 = encoder.encode(audio.tobytes())
+    mp3 += encoder.flush()
+    Path(path).write_bytes(mp3)
+
+
+def _dataset_manifest(stem: str, duration_seconds: float) -> dict:
+    audio = f"{stem}.mp3"
+    transcript = f"{stem}.transcript.md"
+    notes = f"{stem}.notes.md"
+    return {
+        "version": 1,
+        "created": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "dataset_id": stem,
+        "duration_seconds": round(duration_seconds, 2),
+        "path_mapping": {
+            "audio": audio,
+            "transcript": transcript,
+            "notes": notes,
+        },
+        "files": [
+            {"role": "audio", "path": audio, "media_type": "audio/mpeg"},
+            {"role": "transcript", "path": transcript, "media_type": "text/markdown"},
+            {"role": "notes", "path": notes, "media_type": "text/markdown"},
+        ],
+    }
 
 
 def hq_model_cached(model_id: str = HQ_MODEL) -> bool:
@@ -445,22 +501,12 @@ class MicRecorder:
         path: str | Path,
         preprocessor: Callable[[np.ndarray, int], np.ndarray] | None = None,
     ) -> None:
-        import lameenc
-
         if not self.has_recording:
             raise RuntimeError("No recording available")
         audio_f32 = self.audio_float32
         if preprocessor is not None:
             audio_f32 = preprocessor(audio_f32, SAMPLE_RATE)
-        audio = np.clip(audio_f32 * 32768.0, -32768, 32767).astype(np.int16)
-        encoder = lameenc.Encoder()
-        encoder.set_bit_rate(MP3_BITRATE)
-        encoder.set_in_sample_rate(SAMPLE_RATE)
-        encoder.set_channels(CHANNELS)
-        encoder.set_quality(2)
-        mp3 = encoder.encode(audio.tobytes())
-        mp3 += encoder.flush()
-        Path(path).write_bytes(mp3)
+        _encode_mp3_float32(path, audio_f32, SAMPLE_RATE)
 
     def cleanup(self) -> None:
         """Delete the temp WAV file, if any."""
@@ -499,6 +545,14 @@ class Player:
     @property
     def duration(self) -> float:
         return self._audio.size / self._sr if self._sr else 0.0
+
+    @property
+    def audio_float32(self) -> np.ndarray:
+        return self._audio.copy()
+
+    @property
+    def sample_rate(self) -> int:
+        return self._sr
 
     @property
     def position(self) -> float:
@@ -843,6 +897,7 @@ class App:
         file_menu.add_separator()
         file_menu.add_command(label=self._tr("open_session_menu"), command=self.open_session)
         file_menu.add_command(label=self._tr("save_session_menu"), command=self.save_session)
+        file_menu.add_command(label=self._tr("export_dataset_menu"), command=self.export_dataset)
         file_menu.add_separator()
         file_menu.add_command(label=self._tr("save_transcript_menu"), command=self.export_transcript, accelerator="Cmd/Ctrl+S")
         file_menu.add_command(label=self._tr("save_mp3_menu"), command=self.export_mp3)
@@ -1383,6 +1438,49 @@ class App:
             messagebox.showerror(self._tr("generic_error"), self._tr("save_error", error=exc))
             return
         messagebox.showinfo(self._tr("saved"), self._tr("save_to", path=path))
+
+    def export_dataset(self) -> None:
+        transcript = self.transcript.get("1.0", "end").rstrip()
+        notes = self.notes_text.get("1.0", "end").rstrip()
+        if not (self.recorder.has_recording or self._player.has_audio):
+            messagebox.showinfo(self._tr("export_dataset_title"), self._tr("no_audio"))
+            return
+        if not transcript:
+            messagebox.showinfo(self._tr("export_dataset_title"), self._tr("no_transcript"))
+            return
+        path = filedialog.asksaveasfilename(
+            filetypes=[("Dataset folder", "*")],
+            initialfile=_suggested_dataset_name(),
+            title=self._tr("export_dataset_title"),
+            **_initialdir_option("datasets_dir"),
+        )
+        if not path:
+            return
+        folder = Path(path)
+        stem = _safe_filename_part(folder.name, fallback="dataset")
+        audio_path = folder / f"{stem}.mp3"
+        transcript_path = folder / f"{stem}.transcript.md"
+        notes_path = folder / f"{stem}.notes.md"
+        manifest_path = folder / "manifest.json"
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            self._write_dataset_audio(audio_path)
+            transcript_path.write_text(transcript + "\n", encoding="utf-8")
+            notes_path.write_text(notes + "\n", encoding="utf-8")
+            duration = self.recorder.duration_seconds if self.recorder.has_recording else self._player.duration
+            manifest = _dataset_manifest(stem, duration)
+            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except Exception as exc:
+            messagebox.showerror(self._tr("dataset_save_failed"), f"{type(exc).__name__}: {exc}")
+            return
+        messagebox.showinfo(self._tr("saved"), self._tr("dataset_save_to", path=folder))
+
+    def _write_dataset_audio(self, path: str | Path) -> None:
+        preprocessor = self._build_preprocessor() if self.recorder.has_recording and self._nr_var.get() else None
+        if self.recorder.has_recording:
+            self.recorder.encode_mp3(path, preprocessor=preprocessor)
+            return
+        _encode_mp3_float32(path, self._player.audio_float32, self._player.sample_rate)
 
     # ---------- notes ----------
 

@@ -86,9 +86,11 @@ font_size = 13
     assert loaded["paths"]["transcripts_dir"] == "exports/transcripts"
     assert "unknown" not in loaded["paths"]
     assert "sessions_dir" in loaded["paths"]
+    assert "datasets_dir" in loaded["paths"]
     assert loaded["models"]["default_llm_model"] == "qwen2.5:7b"
     assert loaded["models"]["llm_models"] == ["qwen2.5:7b", "mistral:7b"]
     assert loaded["filenames"]["mp3_template"] == "{timestamp}_{meeting_name}.mp3"
+    assert loaded["filenames"]["dataset_template"] == "{timestamp}_{meeting_name}"
     assert loaded["filenames"]["meeting_name"] == "standup"
     assert loaded["filenames"]["timestamp_format"] == "%Y%m%d_%H%M"
     assert loaded["defaults"]["live"] is False

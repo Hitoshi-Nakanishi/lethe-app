@@ -9,6 +9,7 @@ transcripts_dir = ""
 notes_dir = ""
 minutes_dir = ""
 sessions_dir = ""
+datasets_dir = ""
 
 [models]
 whisper_live_model = "medium"
@@ -21,6 +22,8 @@ llm_models = ["llama3.1:8b", "qwen2.5:7b", "mistral:7b"]
 [filenames]
 # MP3 save dialog initial filename. Placeholders: {timestamp}, {meeting_name}.
 mp3_template = "{timestamp}_{meeting_name}.mp3"
+# Dataset export folder name. Placeholders: {timestamp}, {meeting_name}.
+dataset_template = "{timestamp}_{meeting_name}"
 meeting_name = "meeting"
 timestamp_format = "%Y%m%d_%H%M"
 
