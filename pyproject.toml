@@ -7,6 +7,7 @@ name = "lethe"
 version = "0.2.0"
 description = "Lethe — desktop voice recorder, transcriber and minutes tool."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
 authors = [
     { name = "Hitoshi Nakanishi", email = "Hitoshi.Nakanishi12345@gmail.com" },
