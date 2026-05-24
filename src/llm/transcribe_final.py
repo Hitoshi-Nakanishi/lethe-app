@@ -29,7 +29,7 @@ from pathlib import Path
 import numpy as np
 
 from llm.transcribe_stream import VAD_PARAMS, format_initial_prompt, resample_to_16k
-from llm.whisper_models import get_whisper_model
+from llm.whisper_models import get_cpu_fallback_model, get_whisper_model, should_fallback_to_cpu
 
 DEFAULT_MODEL = "large-v3"
 
@@ -70,6 +70,21 @@ def transcribe_segments(
     if formatted_prompt:
         kwargs["initial_prompt"] = formatted_prompt
 
+    try:
+        return _collect_segments(model, audio_input, kwargs, progress_callback)
+    except Exception as exc:
+        if not should_fallback_to_cpu(device, exc):
+            raise
+        model = get_cpu_fallback_model(model_size, device, compute_type)
+        return _collect_segments(model, audio_input, kwargs, progress_callback)
+
+
+def _collect_segments(
+    model,
+    audio_input: str | np.ndarray,
+    kwargs: dict,
+    progress_callback: Callable[[float], None] | None,
+) -> list[Segment]:
     segments, info = model.transcribe(audio_input, **kwargs)
     duration = float(getattr(info, "duration", 0.0) or 0.0)
     out: list[Segment] = []

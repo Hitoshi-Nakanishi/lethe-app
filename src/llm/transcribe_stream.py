@@ -113,6 +113,11 @@ class StreamingTranscriber:
 
         return get_whisper_model(self._model_size, self._device, self._compute_type)
 
+    def _load_cpu_fallback_model(self):
+        from llm.whisper_models import get_cpu_fallback_model
+
+        return get_cpu_fallback_model(self._model_size, self._device, self._compute_type)
+
     def _run(self) -> None:
         try:
             self._model = self._load_model()
@@ -167,12 +172,26 @@ class StreamingTranscriber:
             prompt = self._current_prompt()
             if prompt:
                 kwargs["initial_prompt"] = prompt
-            model = self._model
-            if model is None:
-                raise RuntimeError("Whisper model is not loaded")
-            segments, _ = model.transcribe(resampled, **kwargs)
-            text = " ".join(s.text.strip() for s in segments).strip()
+            text = self._transcribe_with_loaded_model(resampled, kwargs)
             if text:
                 self._on_text(text)
         except Exception as exc:
+            from llm.whisper_models import should_fallback_to_cpu
+
+            if should_fallback_to_cpu(self._device, exc):
+                try:
+                    self._model = self._load_cpu_fallback_model()
+                    text = self._transcribe_with_loaded_model(resampled, kwargs)
+                    if text:
+                        self._on_text(text)
+                    return
+                except Exception as fallback_exc:
+                    exc = fallback_exc
             self._on_text(f"[transcribe error: {exc}]")
+
+    def _transcribe_with_loaded_model(self, audio: np.ndarray, kwargs: dict) -> str:
+        model = self._model
+        if model is None:
+            raise RuntimeError("Whisper model is not loaded")
+        segments, _ = model.transcribe(audio, **kwargs)
+        return " ".join(s.text.strip() for s in segments).strip()
