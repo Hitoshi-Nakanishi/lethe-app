@@ -53,7 +53,7 @@ DEFAULT_CONFIG: dict = {
         "llm_model": "",
         "theme": "midnight",
         "dark_mode": True,
-        "language": "ja",
+        "language": "en",
         "font_size": 11,
     },
 }
@@ -67,7 +67,7 @@ DEFAULTS: dict = {
     "llm_model": "",
     "theme": "midnight",
     "dark_mode": True,
-    "language": "ja",
+    "language": "en",
     "font_size": 11,
 }
 

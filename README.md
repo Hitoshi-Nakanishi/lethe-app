@@ -10,7 +10,7 @@ with Ollama. Audio, transcripts, and notes stay on your machine.
 
 Japanese documentation: [README.ja.md](README.ja.md)
 
-![Lethe desktop app screenshot](docs/assets/lethe-resize-check-topmost.png)
+![Lethe desktop app screenshot](docs/assets/lethe-en-topmost.png)
 
 ## Motivation
 

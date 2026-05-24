@@ -35,5 +35,5 @@ live = true
 llm_model = ""
 theme = "midnight"
 dark_mode = true
-language = "ja"
+language = "en"
 font_size = 11
