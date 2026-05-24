@@ -666,6 +666,7 @@ class App:
             borderwidth=1,
             padding=(9, 6),
             arrowsize=12,
+            font=self._font(),
         )
         style.map(
             "TCombobox",
@@ -696,6 +697,7 @@ class App:
         self.root.option_add("*TCombobox*Listbox.highlightThickness", 1)
         self.root.option_add("*TCombobox*Listbox.highlightBackground", BORDER)
         self.root.option_add("*TCombobox*Listbox.highlightColor", ACCENT)
+        self.root.option_add("*TCombobox*Listbox.font", self._font())
         style.configure(
             "Lethe.Horizontal.TProgressbar",
             background=ACCENT,
@@ -788,6 +790,10 @@ class App:
             self.status_icon.configure(font=self._font(-2, "bold"))
         if hasattr(self, "status"):
             self.status.configure(font=self._font(0, "bold"))
+        for widget_name in ("language_combo", "theme_combo", "device_combo", "llm_combo"):
+            widget = getattr(self, widget_name, None)
+            if widget is not None:
+                widget.configure(font=self._font())
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self.root)
@@ -838,6 +844,7 @@ class App:
             width=9,
             values=list(LANGUAGE_CODES),
             textvariable=self._language_var,
+            font=self._font(),
         )
         self.language_combo.grid(row=1, column=3, sticky="e", padx=(8, 0), pady=(8, 0))
         self.language_combo.bind("<<ComboboxSelected>>", self._on_language_change)
@@ -847,6 +854,7 @@ class App:
             width=10,
             values=list(THEME_LABELS),
             textvariable=self._theme_var,
+            font=self._font(),
         )
         self.theme_combo.grid(row=1, column=2, sticky="e", padx=(8, 0), pady=(8, 0))
         self.theme_combo.bind("<<ComboboxSelected>>", self._on_theme_change)
@@ -865,7 +873,7 @@ class App:
         source.columnconfigure(1, weight=1)
         self.input_label = ttk.Label(source, text=self._tr("input"), style="Card.TLabel")
         self.input_label.grid(row=0, column=0, sticky="w", pady=(0, 6))
-        self.device_combo = ttk.Combobox(source, state="readonly", width=26)
+        self.device_combo = ttk.Combobox(source, state="readonly", width=26, font=self._font())
         self.device_combo.grid(row=0, column=1, sticky="w", padx=(8, 4), pady=(0, 6))
         self.device_combo.bind("<<ComboboxSelected>>", self._on_device_change)
         self.refresh_button = ttk.Button(source, text=self._tr("refresh_input"), width=8, command=self.refresh_devices)
@@ -888,6 +896,7 @@ class App:
             width=22,
             values=self._llm_models,
             textvariable=self._llm_model_var,
+            font=self._font(),
         )
         self.llm_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=(8, 4), pady=(0, 6))
         self.nr_check = Switch(
