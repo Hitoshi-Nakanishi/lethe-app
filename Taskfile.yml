@@ -47,9 +47,22 @@ tasks:
       - task: app:run
 
   models:
-    desc: Download configured Whisper models
+    desc: Download configured Whisper speech models
     cmds:
       - task: app:models
+
+  llm-model-list:
+    desc: List configured Ollama LLM models
+    cmds:
+      - task: app:llm-model-list
+
+  download-llm-model:
+    desc: Download an Ollama LLM model
+    summary: |
+      Usage:
+        task download-llm-model -- llama3.1:8b
+    cmds:
+      - task: app:download-llm-model
 
   setup:
     desc: Sync the uv project environment

@@ -7,9 +7,22 @@ tasks:
       - python src/scripts/uv_bootstrap.py run --no-sync lethe {{.CLI_ARGS}}
 
   models:
-    desc: Download configured Whisper models
+    desc: Download configured Whisper speech models
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/download_models.py {{.CLI_ARGS}}
+
+  llm-model-list:
+    desc: List configured Ollama LLM models
+    cmds:
+      - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/ollama_models.py list
+
+  download-llm-model:
+    desc: Download an Ollama LLM model
+    summary: |
+      Usage:
+        task download-llm-model -- llama3.1:8b
+    cmds:
+      - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/ollama_models.py pull {{.CLI_ARGS}}
 
   recorder:
     desc: Run the recorder helper CLI
