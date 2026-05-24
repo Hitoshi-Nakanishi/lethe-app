@@ -13,7 +13,7 @@ Record -> Transcribe -> Add notes -> Correct with notes -> Generate minutes
 1. Choose an input device from the input selector.
 2. Enable noise reduction when the room has steady fan or air-conditioner noise.
 3. Click **Record** or press `Space`.
-4. Watch the input level while speaking.
+4. Watch the wave meter react while speaking.
 5. Click **Stop** to finish recording.
 
 If live transcription is enabled, Lethe shows a rough preview while recording.
@@ -25,7 +25,8 @@ timestamped transcript.
 Click the high-quality transcription button after recording or after opening an
 existing audio file. Lethe uses Whisper, keeps timestamps, and displays one
 segment per line. Click a timestamp such as `[02:15]` to play the audio from
-that point.
+that point. During transcription and other analysis steps, the same meter shows
+an animated analysis wave and progress fill.
 
 ## Add Notes
 

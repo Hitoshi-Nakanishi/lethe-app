@@ -260,6 +260,17 @@ def _parse_leading_timestamp(line: str) -> float | None:
     return hours * 3600 + int(m.group(2)) * 60 + int(m.group(3))
 
 
+def _wave_bar_heights(level: float, phase: float, count: int = 32) -> list[float]:
+    """Return normalized animated bar heights for the wave meter."""
+    level = max(0.0, min(level, 1.0))
+    heights = []
+    for i in range(count):
+        carrier = 0.5 + 0.5 * np.sin(phase + i * 0.58)
+        ripple = 0.5 + 0.5 * np.sin(phase * 0.37 + i * 1.17)
+        heights.append(max(0.06, min(1.0, 0.08 + level * (0.36 + 0.46 * carrier + 0.18 * ripple))))
+    return heights
+
+
 def _is_connection_error(exc: Exception) -> bool:
     """Heuristic: does this exception look like 'service not reachable'?"""
     blob = f"{type(exc).__name__} {exc}".lower()
@@ -346,6 +357,63 @@ class Tooltip:
         if self._tip is not None:
             self._tip.destroy()
             self._tip = None
+
+
+class WaveMeter(tk.Canvas):
+    """Animated wave display for recording and analysis states."""
+
+    def __init__(self, master: tk.Widget, *, height: int = 42) -> None:
+        super().__init__(master, height=height, highlightthickness=1, bd=0, relief="flat")
+        self.mode = "idle"
+        self.level = 0.0
+        self.progress = 0.0
+        self.phase = 0.0
+        self.configure(highlightbackground=BORDER, background=SURFACE_2)
+        self.bind("<Configure>", lambda _event: self.draw())
+
+    def set_mode(self, mode: str) -> None:
+        self.mode = mode
+        self.draw()
+
+    def set_level(self, level: float) -> None:
+        self.level = max(0.0, min(level, 1.0))
+
+    def set_progress(self, progress: float) -> None:
+        self.progress = max(0.0, min(progress, 1.0))
+
+    def restyle(self) -> None:
+        self.configure(highlightbackground=BORDER, background=SURFACE_2)
+        self.draw()
+
+    def tick(self) -> None:
+        if self.mode in {"recording", "analysis"}:
+            self.phase += 0.24 if self.mode == "recording" else 0.16
+        self.draw()
+
+    def draw(self) -> None:
+        self.delete("all")
+        width = max(1, self.winfo_width())
+        height = max(1, self.winfo_height())
+        self.create_rectangle(0, 0, width, height, fill=SURFACE_2, outline=BORDER)
+        if self.mode == "idle":
+            self.create_line(12, height / 2, width - 12, height / 2, fill=BORDER, width=2)
+            return
+
+        level = self.level if self.mode == "recording" else 0.72
+        bars = _wave_bar_heights(level, self.phase)
+        gap = 3
+        usable = max(1, width - 24)
+        bar_w = max(2, (usable - gap * (len(bars) - 1)) / len(bars))
+        x = 12
+        for index, value in enumerate(bars):
+            if self.mode == "analysis" and index / max(1, len(bars) - 1) > max(self.progress, 0.08):
+                color = BORDER
+            else:
+                color = ACCENT if index % 3 else ACCENT_DARK
+            bar_h = max(4, value * (height - 12))
+            y0 = (height - bar_h) / 2
+            self.create_rectangle(x, y0, x + bar_w, y0 + bar_h, fill=color, outline=color)
+            x += bar_w + gap
 
 
 def list_input_devices() -> list[tuple[str, int | None]]:
@@ -748,6 +816,8 @@ class App:
                     selectbackground=ACCENT_SOFT,
                     selectforeground=TEXT,
                 )
+        if hasattr(self, "wave"):
+            self.wave.restyle()
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self.root)
@@ -828,13 +898,13 @@ class App:
         self.open_button.pack(side="right", padx=(0, 6))
         Tooltip(self.open_button, TOOLTIP_OPEN)
 
-        # --- meter row: VU meter while recording / progress while HQ runs ---
+        # --- wave row: audio input while recording / analysis pulse while busy ---
         meter_row = ttk.Frame(parent, style="Card.TFrame")
         meter_row.pack(fill="x", padx=PAD_X, pady=(4, 10))
         self.meter_caption = ttk.Label(meter_row, text="", style="Hint.TLabel", width=16)
         self.meter_caption.pack(side="left")
-        self.meter = ttk.Progressbar(meter_row, mode="determinate", maximum=100, style="Lethe.Horizontal.TProgressbar")
-        self.meter.pack(side="left", fill="x", expand=True, padx=(6, 0))
+        self.wave = WaveMeter(meter_row)
+        self.wave.pack(side="left", fill="x", expand=True, padx=(6, 0))
 
         ttk.Separator(parent, orient="horizontal").pack(fill="x", padx=PAD_X)
 
@@ -1031,6 +1101,8 @@ class App:
         self.nr_check.state(["disabled"])
         self.device_combo.state(["disabled"])
         self.meter_caption.config(text="入力レベル")
+        self.wave.set_mode("recording")
+        self.wave.set_level(0)
         self._schedule_tick()
 
     def _stop_recording(self) -> None:
@@ -1039,7 +1111,8 @@ class App:
         self.is_recording = False
         self._cancel_tick()
         self._meter_level = 0.0
-        self.meter["value"] = 0
+        self.wave.set_mode("idle")
+        self.wave.set_level(0)
         self.meter_caption.config(text="")
         self._set_status(f"停止 · {self.recorder.duration_seconds:.1f}秒", "ready")
         self.record_button.config(text=LABEL_RECORD, style="Accent.TButton")
@@ -1258,7 +1331,8 @@ class App:
         else:
             self._set_status("初回モデルをダウンロード中（数分かかります）...", "busy")
         self.meter_caption.config(text="文字起こし進捗")
-        self.meter["value"] = 0
+        self.wave.set_mode("analysis")
+        self.wave.set_progress(0)
 
         def worker() -> None:
             try:
@@ -1296,7 +1370,8 @@ class App:
         self._busy = False
         self.hq_button.config(text=LABEL_HQ)
         self.meter_caption.config(text="")
-        self.meter["value"] = 0
+        self.wave.set_mode("idle")
+        self.wave.set_progress(0)
         if self.recorder.has_recording:
             self.hq_button.config(state="normal")
         self.open_button.config(state="normal")
@@ -1329,6 +1404,9 @@ class App:
         self.hq_button.config(state="disabled")
         self.minutes_button.config(state="disabled")
         self._set_status(f"Ollama で校正中（{model}）...", "busy")
+        self.meter_caption.config(text="解析中")
+        self.wave.set_mode("analysis")
+        self.wave.set_progress(0)
 
         def worker() -> None:
             try:
@@ -1344,6 +1422,8 @@ class App:
     def _apply_refine_result(self, kind: str, payload: str) -> None:
         self._busy = False
         self.refine_button.config(text=LABEL_REFINE)
+        self.meter_caption.config(text="")
+        self.wave.set_mode("idle")
         if kind == "ok":
             self._replace_transcript(payload)
             self._set_status("校正完了", "ok")
@@ -1367,6 +1447,9 @@ class App:
         self.refine_button.config(state="disabled")
         self.hq_button.config(state="disabled")
         self._set_status(f"Ollama で議事録を生成中（{model}）...", "busy")
+        self.meter_caption.config(text="解析中")
+        self.wave.set_mode("analysis")
+        self.wave.set_progress(0)
 
         def worker() -> None:
             try:
@@ -1382,6 +1465,8 @@ class App:
     def _apply_minutes_result(self, kind: str, payload: str) -> None:
         self._busy = False
         self.minutes_button.config(text=LABEL_MINUTES)
+        self.meter_caption.config(text="")
+        self.wave.set_mode("idle")
         if self.recorder.has_recording:
             self.hq_button.config(state="normal")
         self._sync_transcript_actions()
@@ -1407,8 +1492,11 @@ class App:
             relief="flat",
             highlightthickness=1,
             highlightbackground=BORDER,
-            background=SURFACE,
+            background=SURFACE_2,
             foreground=TEXT,
+            insertbackground=ACCENT,
+            selectbackground=ACCENT_SOFT,
+            selectforeground=TEXT,
             padx=10,
             pady=8,
         )
@@ -1533,6 +1621,7 @@ class App:
         self._drain_progress_queue()
         self._update_meter()
         self._update_playback()
+        self.wave.tick()
         self.root.after(100, self._poll_queues)
 
     def _drain_transcript_queue(self) -> None:
@@ -1564,16 +1653,16 @@ class App:
                 break
         if fraction is not None and self._busy:
             pct = int(max(0.0, min(fraction, 1.0)) * 100)
-            self.meter["value"] = pct
+            self.wave.set_progress(pct / 100)
             self.meter_caption.config(text=f"文字起こし進捗 · {pct}%")
 
     def _update_meter(self) -> None:
         if not self.is_recording:
             return
         # Peak level with a VU-style decay so the bar doesn't flicker.
-        target = min(self.recorder.level * 300.0, 100.0)
+        target = min(self.recorder.level * 3.0, 1.0)
         self._meter_level = max(target, self._meter_level * 0.75)
-        self.meter["value"] = self._meter_level
+        self.wave.set_level(self._meter_level)
 
     def _update_playback(self) -> None:
         if not self._player.has_audio:
