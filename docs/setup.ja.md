@@ -11,6 +11,17 @@ English version: [setup.md](setup.md)
 
 ## インストール
 
+uv を使う場合:
+
+```sh
+git clone <this repo> lethe-app
+cd lethe-app
+uv sync --dev
+uv run lethe
+```
+
+venv と pip を使う場合:
+
 ```sh
 git clone <this repo> lethe-app
 cd lethe-app
@@ -51,6 +62,13 @@ python -c "import tkinter, _tkinter; print(_tkinter.TK_VERSION)"
 ```sh
 pytest -q
 lethe
+```
+
+uv を使う場合:
+
+```sh
+uv run pytest -q
+uv run lethe
 ```
 
 ## トラブルシューティング

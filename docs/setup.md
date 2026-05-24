@@ -11,6 +11,17 @@ Japanese version: [setup.ja.md](setup.ja.md)
 
 ## Install
 
+Using uv:
+
+```sh
+git clone <this repo> lethe-app
+cd lethe-app
+uv sync --dev
+uv run lethe
+```
+
+Using venv and pip:
+
 ```sh
 git clone <this repo> lethe-app
 cd lethe-app
@@ -54,6 +65,13 @@ python -c "import tkinter, _tkinter; print(_tkinter.TK_VERSION)"
 ```sh
 pytest -q
 lethe
+```
+
+With uv:
+
+```sh
+uv run pytest -q
+uv run lethe
 ```
 
 ## Troubleshooting
