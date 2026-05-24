@@ -33,7 +33,9 @@ task run
 syncs the Python environment with `uv sync --dev`.
 `task run` starts the Lethe desktop app.
 
-Optionally list and pre-download every configured model before first use:
+Optionally list and pre-download the configured models before first use:
+Whisper `medium`, `large-v3`; Ollama `llama3.1:8b`, `qwen2.5:7b`,
+`mistral:7b`.
 
 ```sh
 task model-list
