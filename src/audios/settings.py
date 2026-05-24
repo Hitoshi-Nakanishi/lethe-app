@@ -47,6 +47,8 @@ DEFAULTS: dict = {
     "live": False,
     "geometry": "",
     "llm_model": "",
+    "theme": "midnight",
+    "dark_mode": True,
 }
 
 # Temp-WAV name patterns Lethe creates; swept on startup.

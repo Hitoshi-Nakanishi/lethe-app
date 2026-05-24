@@ -63,6 +63,11 @@ meta.json
 Default save/open folders are configured in `default.toml` under `[paths]`.
 Leave a value empty to use the operating system default.
 
+## Themes
+
+Use the header theme selector to switch between Midnight, Aurora, and Ember.
+The **Dark** toggle switches each theme between light and dark palettes.
+
 ## Shortcuts
 
 | Key | Action |
