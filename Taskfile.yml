@@ -47,17 +47,17 @@ tasks:
       - task: app:run
 
   model-list:
-    desc: List configured Whisper and Ollama models
+    desc: List configured Whisper and Ollama models (medium, large-v3, llama3.1:8b, qwen2.5:7b, mistral:7b)
     cmds:
       - task: app:model-list
 
   download-models:
-    desc: Download all configured Whisper and Ollama models
+    desc: Download configured Whisper and Ollama models (medium, large-v3, llama3.1:8b, qwen2.5:7b, mistral:7b)
     cmds:
       - task: app:download-models
 
   download-whisper-models:
-    desc: Download configured Whisper speech models
+    desc: Download configured Whisper speech models (medium, large-v3)
     cmds:
       - task: app:download-whisper-models
 

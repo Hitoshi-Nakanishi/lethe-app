@@ -22,7 +22,8 @@ task run
 
 `task setup` は uv が PATH に無い場合も自動で用意します。
 
-List configured models and pre-download all required models before first use.
+List configured models and pre-download the configured set: Whisper `medium`,
+`large-v3`; Ollama `llama3.1:8b`, `qwen2.5:7b`, `mistral:7b`.
 
 ```sh
 task model-list

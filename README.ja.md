@@ -33,7 +33,8 @@ task run
 `uv sync --dev` で Python 環境を同期します。
 `task run` は Lethe のデスクトップアプリを起動します。
 
-List configured models and pre-download all required models before first use.
+List configured models and pre-download the configured set: Whisper `medium`,
+`large-v3`; Ollama `llama3.1:8b`, `qwen2.5:7b`, `mistral:7b`.
 
 ```sh
 task model-list
