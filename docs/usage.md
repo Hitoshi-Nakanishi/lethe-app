@@ -1,216 +1,72 @@
-# Lethe 使い方ガイド
+# Lethe Usage Guide
 
-セットアップは [setup.md](setup.md) を参照してください。このページでは
-Lethe の操作と機能を順に説明します。
+Japanese version: [usage.ja.md](usage.ja.md)
 
-## 画面構成
+## Basic Workflow
 
-起動するとこんなウィンドウが開きます（左右の比率はドラッグで変えられます）。
-
-```
-┌─ Lethe — 録音・文字起こし・議事録 ────────────────────────┐
-│                                        [準備完了]  00:00 │   ← ヘッダー（タイトル / ステータス / タイマー）
-├─────────────────────────────────────┬───────────────────┤
-│ 入力 [マイク▼][↻]      [☐ ノイズ除去] │ メモ   [保存][読込]│
-│ [●  録音開始] [☐ ライブ転写]            │ 用語をここに…       │
-│              [音声を開く] [MP3 保存]    │ ─────────────────│
-│ [入力レベル ────────────────]          │ ┌─────────────┐ │
-│ ─────────────────────────────────────  │ │             │ │
-│ 文字起こし                       [保存] │ │             │ │
-│ [① 高精度で文字起こし] [② メモで校正]    │ │  メモ入力欄  │ │
-│ [③ 議事録を作成]                       │ │             │ │
-│ 手順: 録音 → ① → メモ → ② → ③            │ │             │ │
-│ [▶ 再生][■] 00:00/00:00                │ │             │ │
-│ ┌─────────────────────────────────┐  │ │             │ │
-│ │                                 │  │ │             │ │
-│ │  文字起こしテキスト              │  │ │             │ │
-│ │                                 │  │ │             │ │
-│ └─────────────────────────────────┘  │ └─────────────┘ │
-└─────────────────────────────────────┴───────────────────┘
+```text
+Record -> Transcribe -> Add notes -> Correct with notes -> Generate minutes
 ```
 
-- **左ペイン**: 録音・文字起こし・再生コントロール、編集可能な文字起こし。
-- **右ペイン**: 自由記述のメモ。録音中に書いた固有名詞や用語が `②` で
-  活用されます。
+## Record Audio
 
-各ボタンは hover でツールチップが出るので、迷ったら**まずホバー**を。
+1. Choose an input device from the input selector.
+2. Enable noise reduction when the room has steady fan or air-conditioner noise.
+3. Click **Record** or press `Space`.
+4. Watch the input level while speaking.
+5. Click **Stop** to finish recording.
 
-## 基本フロー
+If live transcription is enabled, Lethe shows a rough preview while recording.
+After recording stops, run the high-quality transcription pass for the final
+timestamped transcript.
 
-```
-録音  →  ① 高精度で文字起こし  →  メモに用語を記入  →  ② メモで校正  →  ③ 議事録を作成
-```
+## Transcribe
 
-### ステップ 1: 録音
+Click the high-quality transcription button after recording or after opening an
+existing audio file. Lethe uses Whisper, keeps timestamps, and displays one
+segment per line. Click a timestamp such as `[02:15]` to play the audio from
+that point.
 
-1. **入力** ドロップダウンで使うデバイスを選びます（マイク、BlackHole
-   集約デバイス、USB マイク等）。
-2. 必要に応じて **ノイズ除去** をチェック。空調・PC ファンなど定常的な
-   背景音を抑えます。会話のみのクリアな録音なら OFF でも構いません。
-3. **● 録音開始** をクリック（または `Space` キー）。
-   - **ライブ転写** にチェックがあると、5 秒ごとに簡易モデル (base) で
-     **暫定の文字起こし**が表示されます。停止後に高精度版に置き換わる
-     ので、会議中に「ちゃんと拾えてるか」確認したい時に有用。
-4. 録音中、入力レベルバーが上下することでマイクが拾えているか分かります。
-   **無音録音事故**（録音 1 時間 → 結果無音）を防ぐ唯一の予防線です。
-5. **■ 停止** で録音終了。
+## Add Notes
 
-### ステップ 2: ① 高精度で文字起こし
+Use the notes pane for proper nouns, names, product names, and jargon. One term
+per line is easiest to review. Notes are used as Whisper context during live
+transcription and as authoritative spellings during the correction step.
 
-- 停止時、ライブ転写を使っていた場合は**自動で**走ります。
-- ライブ転写を OFF にしていた場合は手動で **① 高精度で文字起こし** を
-  クリック。
-- 進捗バーが転写の進行を示します。1 時間の録音で 1〜5 分程度（モデルや
-  CPU/GPU 性能による）。
-- 結果は `[MM:SS] 〜という話で…` のように 1 セグメント 1 行で表示。
-- 行頭の `[MM:SS]` は**青いリンク**になっており、クリックすると組み込み
-  プレイヤーがその位置から音声を再生します。怪しい箇所をクリック →
-  耳で確認 → その場でテキストを直接編集、という流れが基本。
+## Correct With Notes
 
-### ステップ 3: メモに用語を記入
+Click the correction button after transcription and notes are ready. Ollama
+rewrites likely misrecognitions so they match your notes while preserving the
+meaning, order, and timestamps.
 
-右ペインの **メモ** 欄に、登場した（または登場予定の）**固有名詞・
-専門用語・人名**を箇条書きします。一行一語が分かりやすい。
+## Generate Minutes
 
-例:
-```
-クォンツ
-ファクター投資
-TOPIX
-中西
-小田原
-日経 225
+Click the minutes button to create Markdown minutes from the transcript. The
+result opens in a separate editable window and can be saved as `.md`.
+
+## Sessions
+
+Use the File menu to save or open a session bundle. A session `.zip` contains:
+
+```text
+audio.wav
+transcript.txt
+notes.txt
+meta.json
 ```
 
-メモは 2 通りに使われます:
+## Shortcuts
 
-1. **録音中に書いた分**: Whisper の `initial_prompt` として毎チャンク
-   渡されるので、ライブ転写の以降の認識が改善します。
-2. **停止後に書いた分**: `② メモで校正` で Ollama に渡され、文字起こし
-   全体の表記を統一できます。
-
-### ステップ 4: ② メモで校正（任意）
-
-メモに用語が入った状態で **② メモで校正** をクリックすると、Ollama が
-転写全体を読み、メモに合うように誤変換だけを修正します。
-
-ポイント:
-
-- メモにある単語を**正しい表記**として優先します。
-- 行頭の `[MM:SS]` タイムスタンプは保持されます。
-- 文の意味や事実は変えません（要約しません）。
-- メモが空だと「メモが空です」とダイアログが出るだけで何もしません。
-
-### ステップ 5: ③ 議事録を作成
-
-**③ 議事録を作成** をクリックすると、Ollama が転写から議事録 Markdown
-を生成します。フォーマット:
-
-- 概要（2〜3 行の要約）
-- 議題（箇条書き）
-- 主な論点・決定事項
-- アクションアイテム（担当者と内容）
-- オープン項目 / 次回までの宿題
-
-別ウィンドウで表示され、**「.md として保存」** で書き出せます。直接
-編集してから保存することもできます。
-
-## その他の機能
-
-### 音声を開く
-
-**音声を開く**（`Cmd/Ctrl+O`）から既存の音声ファイル（mp3 / m4a / wav /
-flac / mp4 等）を選ぶと、`①` と同じ高精度パスがそのファイルに対して
-走ります。Zoom クラウド録画や `yt-dlp` で取得した YouTube 音声をそのまま
-転写・議事録化できます。
-
-### 再生コントロール
-
-- `▶ 再生` / `❚❚ 一時停止`: 文字起こしの音声を再生／一時停止。
-- `■`: 停止して頭に戻す。
-- 位置表示: `現在位置 / 全体時間`。
-- 行頭 `[MM:SS]` クリック: その位置から再生。
-
-再生が文字起こしの最後まで到達したら自動で「再生」ボタンに戻ります。
-
-### MP3 として保存
-
-**MP3 保存** で録音を 128 kbps モノラル MP3 として保存します。ノイズ
-除去を有効にしていた場合、保存される MP3 にも前処理が適用されます。
-
-### セッションの保存・復元
-
-`ファイル > セッションを保存` で、現在の **音声 + 文字起こし + メモ +
-メタデータ** を 1 つの `.zip` バンドルにまとめます。`セッションを開く`
-で後日そのまま復元でき、再生・タイムスタンプクリックシークも生きてい
-ます。
-
-セッション zip の中身:
-```
-audio.wav        # WAV 16 kHz モノ（再生用）
-transcript.txt   # [MM:SS] 行付きの文字起こし
-notes.txt        # メモの内容
-meta.json        # 作成日時、長さ、バージョン
-```
-
-### キーボードショートカット
-
-| キー | 動作 |
+| Key | Action |
 |---|---|
-| `Space` | 録音開始 / 停止（テキスト欄にフォーカスがない時のみ） |
-| `Cmd/Ctrl+S` | 文字起こしを保存（有効な時のみ） |
-| `Cmd/Ctrl+O` | 音声ファイルを開く |
-| `Cmd+Z` / `Ctrl+Z` | 文字起こし / メモ欄の編集を取り消し |
+| `Space` | Start or stop recording when focus is not inside a text field |
+| `Cmd/Ctrl+S` | Save transcript |
+| `Cmd/Ctrl+O` | Open audio file |
+| `Cmd/Ctrl+Z` | Undo text edits |
 
-### 設定の保存場所
+## Tips
 
-`~/.lethe/settings.json` に次の項目が保存され、次回起動時に復元されます:
-
-- 選択した入力デバイス
-- ノイズ除去 ON/OFF
-- ライブ転写 ON/OFF
-- ウィンドウサイズと位置
-
-### 一時ファイル
-
-録音中は一時 WAV ファイルにストリーム書き出しされ、RAM を消費しません
-（2 時間会議でも RAM 使用量はほぼ一定）。クラッシュ等で残った 6 時間
-以上前の一時 WAV は次回起動時に自動で削除されます。
-
-## 精度を上げるコツ
-
-転写の精度を上げる順序（効果が大きい順）:
-
-1. **音声の質を上げる**: マイクを口に近づける、静かな環境で録音、
-   ノイズ除去 ON。
-2. **メモに固有名詞を入れる**: 録音前または録音中に書く。`①` の前後
-   どちらでも有効。
-3. **`② メモで校正` を回す**: メモが充実していれば誤変換を一気に解消。
-4. **編集する**: 最終的には人の目が一番強い。怪しい行を `[MM:SS]`
-   クリックで聴き直して修正。
-5. **モデルを変える**: `src/audios/lethe.py` の `HQ_MODEL` と
-   `WHISPER_MODEL` を変更可能。デフォルトは精度優先で `large-v3` と
-   `medium`。速さを優先するなら `large-v3-turbo` / `small` 等に。
-
-## 既知の制約
-
-- **話者分離は未対応**: 「誰が話したか」は区別されません。Zoom 2 者
-  会話で A/B を分けるには pyannote を別途組み込む必要があります。
-- **長尺ファイルは結果が一括表示**: 1 時間の音声を `①` にかけると、
-  完了するまで文字起こしペインは空のまま。進捗バーで進行を確認して
-  ください。
-- **HQ 転写中はストリーミング再生不可**: 同じ音声デバイスを使うため。
-- **モデルキャッシュは常駐**: 一度ロードした Whisper モデル（medium +
-  large-v3 合わせて ~4.5 GB）はアプリ終了までメモリに残ります。RAM が
-  厳しい場合は `src/audios/lethe.py` で小さいモデルに切り替えてください。
-- **言語は日本語デフォルト**: 他言語を使う場合は `WHISPER_LANGUAGE`
-  定数を変更してください。
-- **macOS / Windows 動作**: Linux は試していませんが、依存パッケージ
-  はすべて対応しているので動くはず。
-
-## 困ったら
-
-- 動作の異常: [setup.md のトラブルシューティング表](setup.md#トラブルシューティング)
-- 精度が出ない: 上の「精度を上げるコツ」を順に試す
-- 落ちた / 何かおかしい: 一時 WAV (`/tmp/micrec-*.wav` または
-  `%TEMP%\micrec-*.wav`) が残っていればそれが録音データ。
+- Record close to the speaker when possible.
+- Add names and domain-specific words to notes before or during recording.
+- Use timestamp click-to-seek for manual transcript review.
+- Use a smaller Whisper model when speed matters more than accuracy.
