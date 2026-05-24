@@ -26,22 +26,26 @@ def test_save_then_load_roundtrip(tmp_path, monkeypatch):
     st.save_settings(
         {
             "device_index": 3,
+            "mic_capture": False,
             "noise_reduce": True,
             "live": True,
             "llm_model": "qwen2.5:7b",
             "theme": "ember",
             "dark_mode": False,
+            "language": "en",
             "geometry": "800x600",
             "junk": "ignored",
         }
     )
     loaded = st.load_settings()
     assert loaded["device_index"] == 3
+    assert loaded["mic_capture"] is False
     assert loaded["noise_reduce"] is True
     assert loaded["live"] is True
     assert loaded["llm_model"] == "qwen2.5:7b"
     assert loaded["theme"] == "ember"
     assert loaded["dark_mode"] is False
+    assert loaded["language"] == "en"
     assert loaded["geometry"] == "800x600"
     assert "junk" not in loaded  # unknown keys are dropped
 

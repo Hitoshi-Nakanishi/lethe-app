@@ -43,12 +43,14 @@ DEFAULT_CONFIG: dict = {
 
 DEFAULTS: dict = {
     "device_index": None,
+    "mic_capture": True,
     "noise_reduce": False,
     "live": False,
     "geometry": "",
     "llm_model": "",
     "theme": "midnight",
     "dark_mode": True,
+    "language": "ja",
 }
 
 # Temp-WAV name patterns Lethe creates; swept on startup.

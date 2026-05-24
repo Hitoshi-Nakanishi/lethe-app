@@ -16,7 +16,16 @@ from types import SimpleNamespace
 import numpy as np
 
 import recorder.lethe as lethe
-from recorder.lethe import PLAYBACK_SR, App, Player, _fmt_time, _is_connection_error, _parse_leading_timestamp, describe_error
+from recorder.lethe import (
+    PLAYBACK_SR,
+    App,
+    Player,
+    _fmt_time,
+    _is_connection_error,
+    _parse_leading_timestamp,
+    describe_error,
+    text_for,
+)
 
 
 def test_fmt_time_minutes_and_hours():
@@ -69,6 +78,15 @@ def test_wave_bar_heights_are_normalized_and_react_to_level():
     assert len(loud) == 8
     assert all(0.0 < value <= 1.0 for value in quiet + loud)
     assert sum(loud) > sum(quiet)
+
+
+def test_text_for_switches_between_japanese_and_english():
+    assert text_for("ja", "record") == "●  録音開始"
+    assert text_for("en", "record") == "●  Record"
+    assert text_for("ja", "mic_capture") == "マイク音声を取る"
+    assert text_for("en", "mic_off_tag") == "Mic off"
+    assert text_for("missing", "record") == "●  録音開始"
+    assert text_for("en", "stopped", seconds=1.25) == "Stopped · 1.2s"
 
 
 def test_player_load_duration_and_position():
@@ -150,6 +168,7 @@ def test_open_session_without_audio_clears_previous_playback(tmp_path, monkeypat
         _set_playback_enabled=lambda enabled: playback_enabled.append(enabled),
         _sync_transcript_actions=lambda: None,
         _set_status=lambda text, kind: statuses.append((text, kind)),
+        _tr=lambda key, **kwargs: text_for("ja", key, **kwargs),
     )
 
     App.open_session(app)

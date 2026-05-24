@@ -11,10 +11,11 @@ Record -> Transcribe -> Add notes -> Correct with notes -> Generate minutes
 ## Record Audio
 
 1. Choose an input device from the input selector.
-2. Enable noise reduction when the room has steady fan or air-conditioner noise.
-3. Click **Record** or press `Space`.
-4. Watch the wave meter react while speaking.
-5. Click **Stop** to finish recording.
+2. Turn off **Capture microphone** when you do not want to record mic audio. In that mode, Lethe does not create an audio file, live transcript, or transcription.
+3. Enable noise reduction when the room has steady fan or air-conditioner noise.
+4. Click **Record** or press `Space`.
+5. Watch the wave meter react while speaking.
+6. Click **Stop** to finish recording.
 
 If live transcription is enabled, Lethe shows a rough preview while recording.
 After recording stops, run the high-quality transcription pass for the final
@@ -68,6 +69,11 @@ Leave a value empty to use the operating system default.
 
 Use the header theme selector to switch between Midnight, Aurora, and Ember.
 The **Dark** toggle switches each theme between light and dark palettes.
+
+## Language
+
+Use the header language selector to switch the app UI between Japanese and
+English. The selected language is saved and restored on the next launch.
 
 ## Shortcuts
 
