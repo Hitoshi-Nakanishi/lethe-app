@@ -101,7 +101,7 @@ class Switch(tk.Frame):
         self._height = 28
 
         self._label = tk.Label(self, text=text, font=self._font, anchor="w", bd=0)
-        self._label.pack(side="left", padx=(0, 8))
+        self._label.pack(side="left", padx=(0, 8) if text else (0, 0))
         self._canvas = tk.Canvas(self, width=self._width, height=self._height, bd=0, highlightthickness=0)
         self._canvas.pack(side="left")
 
@@ -123,6 +123,7 @@ class Switch(tk.Frame):
     def set_text(self, text: str) -> None:
         self._text = text
         self._label.configure(text=self._text)
+        self._label.pack_configure(padx=(0, 8) if text else (0, 0))
 
     def set_font(self, font: FontSpec) -> None:
         self._font = font
