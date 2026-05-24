@@ -1,5 +1,7 @@
 # Lethe
 
+![Python](https://img.shields.io/badge/python-3.14.4-blue)
+
 Lethe は、会議、通話、インタビュー、デスクトップ上の音声を文字起こしと
 Markdown 議事録に変換するデスクトップアプリです。マイクや利用可能な入力
 デバイスから録音し、Whisper でローカル文字起こしを行い、メモに書いた

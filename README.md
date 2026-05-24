@@ -1,5 +1,7 @@
 # Lethe
 
+![Python](https://img.shields.io/badge/python-3.14.4-blue)
+
 Lethe is a desktop app for turning meetings, calls, interviews, and recorded
 desktop audio into transcripts and Markdown minutes. It records from a
 microphone or another available input device, transcribes locally with Whisper,
