@@ -62,6 +62,9 @@ unknown = "ignored"
 [models]
 default_llm_model = "qwen2.5:7b"
 llm_models = ["qwen2.5:7b", "mistral:7b"]
+
+[defaults]
+live = false
 """,
         encoding="utf-8",
     )
@@ -74,6 +77,30 @@ llm_models = ["qwen2.5:7b", "mistral:7b"]
     assert "sessions_dir" in loaded["paths"]
     assert loaded["models"]["default_llm_model"] == "qwen2.5:7b"
     assert loaded["models"]["llm_models"] == ["qwen2.5:7b", "mistral:7b"]
+    assert loaded["defaults"]["live"] is False
+
+
+def test_load_settings_uses_toml_defaults_before_saved_preferences(tmp_path, monkeypatch):
+    config = tmp_path / "default.toml"
+    config.write_text("[defaults]\nlive = false\n", encoding="utf-8")
+    monkeypatch.setattr(st, "CONFIG_PATH", config)
+    monkeypatch.setattr(st, "SETTINGS_PATH", tmp_path / "settings.json")
+
+    loaded = st.load_settings()
+
+    assert loaded["live"] is False
+
+
+def test_saved_settings_override_toml_defaults(tmp_path, monkeypatch):
+    config = tmp_path / "default.toml"
+    config.write_text("[defaults]\nlive = false\n", encoding="utf-8")
+    monkeypatch.setattr(st, "CONFIG_PATH", config)
+    monkeypatch.setattr(st, "SETTINGS_PATH", tmp_path / "settings.json")
+    st.save_settings({"live": True})
+
+    loaded = st.load_settings()
+
+    assert loaded["live"] is True
 
 
 def test_llm_models_includes_default_when_missing(tmp_path, monkeypatch):

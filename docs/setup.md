@@ -66,6 +66,14 @@ the initial folders used by save/open dialogs, and the LLM model choices shown
 in the app. Set `LETHE_CONFIG` to point to another TOML file when you want a
 machine-local config outside the repo.
 
+The live transcript checkbox is on by default. Change the initial value for
+new settings files with:
+
+```toml
+[defaults]
+live = false
+```
+
 ## macOS Tk Note
 
 If a pyenv Python was built without Tcl/Tk, Tkinter will fail to import. Install
