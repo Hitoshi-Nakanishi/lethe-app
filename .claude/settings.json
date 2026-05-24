@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git log*)",
+      "Bash(task*)",
+      "Bash(uv*)",
+      "Bash(pytest*)",
+      "Bash(python -m pytest*)",
+      "Bash(python -m ruff*)",
+      "Bash(ruff*)",
+      "Bash(rg*)",
+      "Bash(ls*)",
+      "Bash(cat*)",
+      "Bash(find*)"
+    ],
+    "defaultMode": "bypassPermissions",
+    "skipDangerousModePermissionPrompt": true
+  }
+}

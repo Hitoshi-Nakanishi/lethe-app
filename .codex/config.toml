@@ -1,0 +1,8 @@
+sandbox_mode = "danger-full-access"
+approval_policy = "never"
+
+# Repo operation policy:
+# - For commit requests, do not ask for confirmation.
+# - Decide and execute automatically.
+# - Stage and commit only files changed by Codex in the current task.
+# - Push only when the maintainer explicitly asks to push.
