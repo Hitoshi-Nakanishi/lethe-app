@@ -815,21 +815,34 @@ class App:
         inner = ttk.Frame(header, style="Header.TFrame")
         inner.pack(fill="x", padx=PAD_X, pady=10)
         inner.columnconfigure(1, weight=1)
-        inner.columnconfigure(4, weight=1)
         ttk.Label(inner, text=APP_NAME, style="Wordmark.TLabel").grid(row=0, column=0, sticky="w")
         self.tagline_label = ttk.Label(inner, text=f"  {self._tr('tagline')}", style="Tagline.TLabel")
         self.tagline_label.grid(row=0, column=1, sticky="w", padx=(4, 12), pady=(6, 0))
-        self.timer = ttk.Label(inner, text="00:00", style="Timer.TLabel")
-        self.timer.grid(row=0, column=5, sticky="e")
-        self.status_banner = tk.Frame(inner, bd=0, highlightthickness=1)
-        self.status_banner.grid(row=1, column=5, sticky="e", pady=(8, 0), ipadx=10, ipady=4)
-        self.status_icon = tk.Label(self.status_banner, text="OK", width=3, anchor="center", font=self._font(-2, "bold"))
-        self.status_icon.pack(side="left", padx=(0, 7))
-        self.status = tk.Label(self.status_banner, text=self._tr("status_ready"), font=self._font(0, "bold"))
-        self.status.pack(side="left")
-        self._set_status(self._tr("status_ready"), "ready")
+
+        settings = ttk.Frame(inner, style="Header.TFrame")
+        settings.grid(row=0, column=2, sticky="e", padx=(12, 14), pady=(4, 0))
+        self.theme_combo = ttk.Combobox(
+            settings,
+            state="readonly",
+            width=10,
+            values=list(THEME_LABELS),
+            textvariable=self._theme_var,
+            font=self._font(),
+        )
+        self.theme_combo.pack(side="left", padx=(0, 8))
+        self.theme_combo.bind("<<ComboboxSelected>>", self._on_theme_change)
+        self.language_combo = ttk.Combobox(
+            settings,
+            state="readonly",
+            width=9,
+            values=list(LANGUAGE_CODES),
+            textvariable=self._language_var,
+            font=self._font(),
+        )
+        self.language_combo.pack(side="left", padx=(0, 10))
+        self.language_combo.bind("<<ComboboxSelected>>", self._on_language_change)
         self.dark_check = Switch(
-            inner,
+            settings,
             text=self._tr("dark"),
             variable=self._dark_var,
             colors=_ui_colors,
@@ -837,27 +850,25 @@ class App:
             font=self._font(),
             default_font_size=DEFAULT_FONT_SIZE,
         )
-        self.dark_check.grid(row=1, column=4, sticky="e", padx=(8, 10), pady=(8, 0))
-        self.language_combo = ttk.Combobox(
-            inner,
-            state="readonly",
-            width=9,
-            values=list(LANGUAGE_CODES),
-            textvariable=self._language_var,
-            font=self._font(),
-        )
-        self.language_combo.grid(row=1, column=3, sticky="e", padx=(8, 0), pady=(8, 0))
-        self.language_combo.bind("<<ComboboxSelected>>", self._on_language_change)
-        self.theme_combo = ttk.Combobox(
-            inner,
-            state="readonly",
-            width=10,
-            values=list(THEME_LABELS),
-            textvariable=self._theme_var,
-            font=self._font(),
-        )
-        self.theme_combo.grid(row=1, column=2, sticky="e", padx=(8, 0), pady=(8, 0))
-        self.theme_combo.bind("<<ComboboxSelected>>", self._on_theme_change)
+        self.dark_check.pack(side="left")
+
+        self.timer = ttk.Label(inner, text="00:00", style="Timer.TLabel")
+        self.timer.grid(row=0, column=3, sticky="e")
+        self.status_banner = tk.Frame(inner, bd=0, highlightthickness=1)
+        self.status_banner.grid(row=1, column=3, sticky="e", pady=(8, 0), ipadx=10, ipady=4)
+        self.status_icon = tk.Label(self.status_banner, text="OK", width=3, anchor="center", font=self._font(-2, "bold"))
+        self.status_icon.pack(side="left", padx=(0, 7))
+        self.status = tk.Label(self.status_banner, text=self._tr("status_ready"), font=self._font(0, "bold"))
+        self.status.pack(side="left")
+        self._set_status(self._tr("status_ready"), "ready")
+
+        meter = ttk.Frame(inner, style="Header.TFrame")
+        meter.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(12, 0))
+        meter.columnconfigure(1, weight=1)
+        self.meter_caption = ttk.Label(meter, text="", style="Hint.TLabel")
+        self.meter_caption.grid(row=0, column=0, sticky="w", padx=(0, 10))
+        self.wave = WaveMeter(meter, colors=_ui_colors, height=64)
+        self.wave.grid(row=0, column=1, sticky="ew")
         inner.bind("<Configure>", lambda event: self.tagline_label.configure(wraplength=max(120, event.width // 3)))
 
     # ---------- main layout ----------
@@ -962,14 +973,6 @@ class App:
         self.open_button = ttk.Button(controls, text=self._tr("open_audio"), width=11, command=self.open_audio)
         self.open_button.grid(row=2, column=0, sticky="ew", padx=(0, 6))
         Tooltip(self.open_button, TOOLTIP_OPEN)
-
-        # --- wave row: audio input while recording / analysis pulse while busy ---
-        meter_row = ttk.Frame(controls, style="Card.TFrame")
-        meter_row.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(10, 0))
-        self.meter_caption = ttk.Label(meter_row, text="", style="Hint.TLabel", width=16)
-        self.meter_caption.pack(side="left")
-        self.wave = WaveMeter(meter_row, colors=_ui_colors)
-        self.wave.pack(side="left", fill="x", expand=True, padx=(6, 0))
 
         # --- numbered workflow actions ---
         actions = ttk.Frame(parent, style="Card.TFrame")
