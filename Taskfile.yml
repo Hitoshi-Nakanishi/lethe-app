@@ -54,7 +54,7 @@ tasks:
   sync:
     desc: Sync the uv project environment
     cmds:
-      - uv sync --dev
+      - python scripts/uv_bootstrap.py sync --dev
 
   list:
     desc: Show public task commands
