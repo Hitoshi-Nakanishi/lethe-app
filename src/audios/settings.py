@@ -30,6 +30,14 @@ DEFAULT_CONFIG: dict = {
         "notes_dir": "",
         "minutes_dir": "",
         "sessions_dir": "",
+    },
+    "models": {
+        "whisper_live_model": "medium",
+        "whisper_final_model": "large-v3",
+        "whisper_language": "ja",
+        "ollama_url": "http://localhost:11434",
+        "default_llm_model": "llama3.1:8b",
+        "llm_models": ["llama3.1:8b", "qwen2.5:7b", "mistral:7b"],
     }
 }
 
@@ -38,6 +46,7 @@ DEFAULTS: dict = {
     "noise_reduce": False,
     "live": False,
     "geometry": "",
+    "llm_model": "",
 }
 
 # Temp-WAV name patterns Lethe creates; swept on startup.
@@ -49,10 +58,22 @@ def _config_path() -> Path:
 
 
 def _merge_config(data: dict) -> dict:
-    out = {"paths": dict(DEFAULT_CONFIG["paths"])}
+    out = {
+        "paths": dict(DEFAULT_CONFIG["paths"]),
+        "models": dict(DEFAULT_CONFIG["models"]),
+    }
     paths = data.get("paths") if isinstance(data, dict) else None
     if isinstance(paths, dict):
         out["paths"].update({k: str(v) for k, v in paths.items() if k in out["paths"] and v is not None})
+    models = data.get("models") if isinstance(data, dict) else None
+    if isinstance(models, dict):
+        for key, value in models.items():
+            if key not in out["models"] or value is None:
+                continue
+            if key == "llm_models" and isinstance(value, list):
+                out["models"][key] = [str(item) for item in value if str(item).strip()]
+            elif key != "llm_models":
+                out["models"][key] = str(value)
     return out
 
 
@@ -100,6 +121,19 @@ def temp_dir() -> Path:
 def temp_path(name: str) -> Path:
     """Return a path for a Lethe temporary file in the configured temp dir."""
     return temp_dir() / name
+
+
+def model_config() -> dict:
+    return load_config()["models"]
+
+
+def llm_models() -> list[str]:
+    models = model_config().get("llm_models", [])
+    default = str(model_config().get("default_llm_model", "")).strip()
+    out = [str(item).strip() for item in models if str(item).strip()]
+    if default and default not in out:
+        out.insert(0, default)
+    return out
 
 
 def load_settings() -> dict:
