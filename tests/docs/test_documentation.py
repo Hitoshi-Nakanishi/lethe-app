@@ -18,7 +18,7 @@ def test_readmes_are_split_by_language():
 
     assert "Japanese documentation" in english
     assert "English documentation" in japanese
-    assert "デスクトップ向け" in japanese
+    assert "デスクトップアプリ" in japanese
 
 
 def test_usage_docs_are_split_by_language():
@@ -31,12 +31,24 @@ def test_usage_docs_are_split_by_language():
     assert "English version" in japanese
 
 
+def test_architecture_docs_are_split_by_language():
+    english = (ROOT / "docs" / "architecture.md").read_text(encoding="utf-8")
+    japanese = (ROOT / "docs" / "architecture.ja.md").read_text(encoding="utf-8")
+
+    assert "# Lethe Architecture" in english
+    assert "# Lethe アーキテクチャ" in japanese
+    assert "Japanese version" in english
+    assert "English version" in japanese
+
+
 def test_markdown_links_point_to_existing_local_files():
     for path in [
         ROOT / "README.md",
         ROOT / "README.ja.md",
         ROOT / "docs" / "setup.md",
         ROOT / "docs" / "setup.ja.md",
+        ROOT / "docs" / "architecture.md",
+        ROOT / "docs" / "architecture.ja.md",
         ROOT / "docs" / "usage.md",
         ROOT / "docs" / "usage.ja.md",
     ]:
