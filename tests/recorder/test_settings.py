@@ -58,7 +58,7 @@ def test_load_config_merges_default_toml_paths(tmp_path):
         """
 [paths]
 settings_dir = "~/custom-lethe"
-transcripts_dir = "exports/transcripts"
+datasets_dir = "exports/datasets"
 unknown = "ignored"
 
 [models]
@@ -83,10 +83,9 @@ font_size = 13
     loaded = st.load_config(config)
 
     assert loaded["paths"]["settings_dir"] == "~/custom-lethe"
-    assert loaded["paths"]["transcripts_dir"] == "exports/transcripts"
+    assert loaded["paths"]["datasets_dir"] == "exports/datasets"
     assert "unknown" not in loaded["paths"]
-    assert "sessions_dir" in loaded["paths"]
-    assert "datasets_dir" in loaded["paths"]
+    assert set(loaded["paths"]) == {"settings_dir", "temp_dir", "datasets_dir"}
     assert loaded["models"]["default_llm_model"] == "qwen2.5:7b"
     assert loaded["models"]["llm_models"] == ["qwen2.5:7b", "mistral:7b"]
     assert loaded["filenames"]["mp3_template"] == "{timestamp}_{meeting_name}.mp3"

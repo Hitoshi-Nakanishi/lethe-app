@@ -4,11 +4,6 @@ settings_dir = "~/.lethe"
 
 # Empty values use the operating system defaults.
 temp_dir = ""
-audio_dir = ""
-transcripts_dir = ""
-notes_dir = ""
-minutes_dir = ""
-sessions_dir = ""
 datasets_dir = ""
 
 [models]

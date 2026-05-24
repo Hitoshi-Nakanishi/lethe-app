@@ -78,8 +78,8 @@ without guessing filenames.
 
 ## Save Locations
 
-Default save/open folders are configured in `default.toml` under `[paths]`.
-Leave a value empty to use the operating system default.
+The shared save/open folder is configured by `datasets_dir` in `default.toml`
+under `[paths]`. Leave it empty to use the operating system default.
 
 The default MP3 filename shown in the save dialog is configured in
 `default.toml` under `[filenames]`. The built-in pattern is
