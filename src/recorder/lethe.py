@@ -111,6 +111,11 @@ def _apply_palette(theme: str, dark_mode: bool) -> None:
 PAD_X = 16
 PAD_Y = 12
 
+DATASET_AUDIO = "audio.mp3"
+DATASET_TRANSCRIPT = "transcript.md"
+DATASET_MEMO = "memo.md"
+DATASET_MANIFEST = "manifest.json"
+
 AUDIO_FILETYPES = [
     ("音声ファイル", "*.mp3 *.wav *.m4a *.aac *.flac *.ogg *.mp4 *.mov"),
     ("すべてのファイル", "*.*"),
@@ -254,24 +259,21 @@ def _encode_mp3_float32(path: str | Path, audio_f32: np.ndarray, sample_rate: in
     Path(path).write_bytes(mp3)
 
 
-def _dataset_manifest(stem: str, duration_seconds: float) -> dict:
-    audio = f"{stem}.mp3"
-    transcript = f"{stem}.transcript.md"
-    notes = f"{stem}.notes.md"
+def _dataset_manifest(dataset_id: str, duration_seconds: float) -> dict:
     return {
         "version": 1,
         "created": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "dataset_id": stem,
+        "dataset_id": dataset_id,
         "duration_seconds": round(duration_seconds, 2),
         "path_mapping": {
-            "audio": audio,
-            "transcript": transcript,
-            "notes": notes,
+            "audio": DATASET_AUDIO,
+            "transcript": DATASET_TRANSCRIPT,
+            "memo": DATASET_MEMO,
         },
         "files": [
-            {"role": "audio", "path": audio, "media_type": "audio/mpeg"},
-            {"role": "transcript", "path": transcript, "media_type": "text/markdown"},
-            {"role": "notes", "path": notes, "media_type": "text/markdown"},
+            {"role": "audio", "path": DATASET_AUDIO, "media_type": "audio/mpeg"},
+            {"role": "transcript", "path": DATASET_TRANSCRIPT, "media_type": "text/markdown"},
+            {"role": "memo", "path": DATASET_MEMO, "media_type": "text/markdown"},
         ],
     }
 
@@ -1457,18 +1459,18 @@ class App:
         if not path:
             return
         folder = Path(path)
-        stem = _safe_filename_part(folder.name, fallback="dataset")
-        audio_path = folder / f"{stem}.mp3"
-        transcript_path = folder / f"{stem}.transcript.md"
-        notes_path = folder / f"{stem}.notes.md"
-        manifest_path = folder / "manifest.json"
+        dataset_id = _safe_filename_part(folder.name, fallback="dataset")
+        audio_path = folder / DATASET_AUDIO
+        transcript_path = folder / DATASET_TRANSCRIPT
+        memo_path = folder / DATASET_MEMO
+        manifest_path = folder / DATASET_MANIFEST
         try:
             folder.mkdir(parents=True, exist_ok=True)
             self._write_dataset_audio(audio_path)
             transcript_path.write_text(transcript + "\n", encoding="utf-8")
-            notes_path.write_text(notes + "\n", encoding="utf-8")
+            memo_path.write_text(notes + "\n", encoding="utf-8")
             duration = self.recorder.duration_seconds if self.recorder.has_recording else self._player.duration
-            manifest = _dataset_manifest(stem, duration)
+            manifest = _dataset_manifest(dataset_id, duration)
             manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         except Exception as exc:
             messagebox.showerror(self._tr("dataset_save_failed"), f"{type(exc).__name__}: {exc}")

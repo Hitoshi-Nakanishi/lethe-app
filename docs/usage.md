@@ -63,17 +63,18 @@ meta.json
 ## Datasets
 
 Use **File -> Export dataset...** to write analysis-ready files into one
-folder. Lethe creates a 1:1 path mapping with the same stem:
+folder. Lethe creates a 1:1 role-to-path mapping with fixed filenames:
 
 ```text
-<dataset>/<dataset>.mp3
-<dataset>/<dataset>.transcript.md
-<dataset>/<dataset>.notes.md
+<dataset>/audio.mp3
+<dataset>/transcript.md
+<dataset>/memo.md
 <dataset>/manifest.json
 ```
 
-`manifest.json` records the relative paths for the audio, transcript, and notes
-so downstream analyzers can pick up the dataset without guessing filenames.
+`manifest.json` records the dataset id, duration, and relative paths for the
+audio, transcript, and memo so downstream analyzers can pick up the dataset
+without guessing filenames.
 
 ## Save Locations
 
