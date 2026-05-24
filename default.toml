@@ -20,4 +20,10 @@ llm_models = ["llama3.1:8b", "qwen2.5:7b", "mistral:7b"]
 
 [defaults]
 # Initial UI defaults used before a value is saved in settings.json.
+mic_capture = true
+noise_reduce = false
 live = true
+llm_model = ""
+theme = "midnight"
+dark_mode = true
+language = "ja"

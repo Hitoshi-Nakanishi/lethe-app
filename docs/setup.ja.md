@@ -68,11 +68,17 @@ ollama pull llama3.1:8b
 
 `default.toml` を編集すると、Lethe の設定保存先、一時 WAV の保存先、保存や読み込みダイアログの初期フォルダ、アプリに表示する LLM モデル候補を指定できます。リポジトリ外の設定ファイルを使いたい場合は、環境変数 `LETHE_CONFIG` に TOML ファイルのパスを指定します。
 
-ライブ転写チェックボックスは既定で ON です。新しい設定ファイルの初期値を変える場合は次のように指定します。
+UI の初期値も設定できます。これは `settings.json` に値が保存される前だけ使われ、保存済みのユーザー選択がある場合はそちらが優先されます。
 
 ```toml
 [defaults]
+mic_capture = true
+noise_reduce = false
 live = false
+llm_model = "qwen2.5:7b"
+theme = "midnight"
+dark_mode = true
+language = "en"
 ```
 
 ## macOS と Tk

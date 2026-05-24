@@ -40,7 +40,13 @@ DEFAULT_CONFIG: dict = {
         "llm_models": ["llama3.1:8b", "qwen2.5:7b", "mistral:7b"],
     },
     "defaults": {
+        "mic_capture": True,
+        "noise_reduce": False,
         "live": True,
+        "llm_model": "",
+        "theme": "midnight",
+        "dark_mode": True,
+        "language": "ja",
     },
 }
 
@@ -82,12 +88,24 @@ def _merge_config(data: dict) -> dict:
                 out["models"][key] = [str(item) for item in value if str(item).strip()]
             elif key != "llm_models":
                 out["models"][key] = str(value)
-    defaults = data.get("defaults") if isinstance(data, dict) else None
-    if isinstance(defaults, dict):
-        live = defaults.get("live")
-        if isinstance(live, bool):
-            out["defaults"]["live"] = live
+    _merge_defaults(out, data.get("defaults") if isinstance(data, dict) else None)
     return out
+
+
+def _merge_defaults(out: dict, defaults: object) -> None:
+    """Merge TOML-configured initial UI defaults with light type checks."""
+    if not isinstance(defaults, dict):
+        return
+    bool_keys = {"mic_capture", "noise_reduce", "live", "dark_mode"}
+    str_keys = {"llm_model", "theme", "language"}
+    for key in bool_keys:
+        value = defaults.get(key)
+        if isinstance(value, bool):
+            out["defaults"][key] = value
+    for key in str_keys:
+        value = defaults.get(key)
+        if isinstance(value, str):
+            out["defaults"][key] = value
 
 
 def load_config(path: str | Path | None = None) -> dict:
