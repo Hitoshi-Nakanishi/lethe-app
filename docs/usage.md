@@ -65,6 +65,11 @@ meta.json
 Default save/open folders are configured in `default.toml` under `[paths]`.
 Leave a value empty to use the operating system default.
 
+The default MP3 filename shown in the save dialog is configured in
+`default.toml` under `[filenames]`. The built-in pattern is
+`YYYYMMDD_HHMM_<meeting_name>.mp3`, and the suggested name remains editable in
+the save dialog.
+
 ## Themes
 
 Use the header theme selector to switch between Midnight, Aurora, and Ember.

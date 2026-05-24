@@ -52,6 +52,8 @@ meta.json
 
 保存と読み込みダイアログの初期フォルダは `default.toml` の `[paths]` で指定できます。空のままにすると OS の標準動作に任せます。
 
+MP3 保存ダイアログに表示される推奨ファイル名は `default.toml` の `[filenames]` で指定できます。標準では `YYYYMMDD_HHMM_<meeting_name>.mp3` 形式になり、保存ダイアログ上でそのまま編集できます。
+
 ## テーマ
 
 ヘッダーのテーマセレクタから Midnight、Aurora、Ember を選べます。**Dark** トグルで各テーマのライト版とダーク版を切り替えます。

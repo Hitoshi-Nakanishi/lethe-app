@@ -68,9 +68,9 @@ generation require it.
 ## Configuration
 
 Edit `default.toml` to choose where Lethe stores settings, temporary WAV files,
-the initial folders used by save/open dialogs, and the LLM model choices shown
-in the app. Set `LETHE_CONFIG` to point to another TOML file when you want a
-machine-local config outside the repo.
+the initial folders used by save/open dialogs, the default MP3 filename pattern,
+and the LLM model choices shown in the app. Set `LETHE_CONFIG` to point to
+another TOML file when you want a machine-local config outside the repo.
 
 Initial UI defaults are also configurable. They apply before a value is saved
 in `settings.json`; after that, the user's saved choice wins. For example:
@@ -84,6 +84,16 @@ llm_model = "qwen2.5:7b"
 theme = "midnight"
 dark_mode = true
 language = "en"
+```
+
+MP3 save dialogs use the `[filenames]` section to suggest a selectable filename.
+The user can still edit the filename in the dialog.
+
+```toml
+[filenames]
+mp3_template = "{timestamp}_{meeting_name}.mp3"
+meeting_name = "team_sync"
+timestamp_format = "%Y%m%d_%H%M"
 ```
 
 ## macOS Tk Note
