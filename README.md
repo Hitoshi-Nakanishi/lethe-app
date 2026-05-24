@@ -40,6 +40,12 @@ uv sync --dev
 uv run lethe
 ```
 
+With Task:
+
+```sh
+task run
+```
+
 ## Documentation
 
 - [Setup guide](docs/setup.md)
@@ -72,6 +78,16 @@ With uv:
 
 ```sh
 uv run pytest -q
+```
+
+With Task:
+
+```sh
+task default
+task format
+task check
+task typecheck
+task test
 ```
 
 ## Project Layout

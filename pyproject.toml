@@ -25,12 +25,13 @@ dependencies = [
 [project.optional-dependencies]
 # `python -m recorder` (WASAPI speaker-loopback CLI) needs SoundCard on Windows.
 loopback = ["soundcard>=0.4.3", 'pywin32>=311; platform_system == "Windows"']
-dev = ["pytest>=8.0", "ruff>=0.6"]
+dev = ["pytest>=8.0", "ruff>=0.6", "ty>=0.0.39"]
 
 [dependency-groups]
 dev = [
   "pytest>=8.0",
   "ruff>=0.6",
+  "ty>=0.0.39",
 ]
 
 [project.scripts]
@@ -52,3 +53,12 @@ line-length = 128
 [tool.ruff.lint.isort]
 combine-as-imports = true
 split-on-trailing-comma = false
+
+[tool.ty.src]
+include = ["src"]
+
+[tool.ty.rules]
+invalid-argument-type = "ignore"
+no-matching-overload = "ignore"
+unresolved-import = "ignore"
+unresolved-attribute = "ignore"
