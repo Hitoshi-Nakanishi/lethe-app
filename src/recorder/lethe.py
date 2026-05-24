@@ -46,6 +46,8 @@ from recorder import settings as settings_store
 
 APP_NAME = "Lethe"
 APP_TAGLINE = "録音・文字起こし・議事録"
+LANGUAGES = {"ja": "日本語", "en": "English"}
+LANGUAGE_CODES = {label: code for code, label in LANGUAGES.items()}
 
 SAMPLE_RATE = 44100
 CHANNELS = 1
@@ -196,6 +198,7 @@ def _apply_palette(theme: str, dark_mode: bool) -> None:
     DISABLED_BG = palette["disabled_bg"]
     DISABLED_FG = palette["disabled_fg"]
 
+
 PAD_X = 16
 PAD_Y = 12
 
@@ -215,6 +218,9 @@ AUDIO_FILETYPES = [
 TIMESTAMP_RE = re.compile(r"^\[(?:(\d+):)?(\d{1,2}):(\d{2})\]")
 
 TOOLTIP_RECORD = "マイク（選択した入力デバイス）の録音を開始／停止します。Space キーでも操作できます。"
+TOOLTIP_MIC_CAPTURE = (
+    "オフにするとマイク入力を開かず、メモだけを記録できます。音声ファイル、ライブ転写、文字起こしは作成されません。"
+)
 TOOLTIP_LIVE = (
     "録音中、5 秒ごとに Whisper medium で暫定の文字起こしを表示します。"
     "停止すると自動で「① 高精度で文字起こし」が走り、より正確な結果に置き換わります。"
@@ -223,8 +229,7 @@ TOOLTIP_NR = "録音音声から定常ノイズ（ファン・空調音など）
 TOOLTIP_OPEN = "既存の音声ファイル(mp3/m4a/wav 等)を開き、「① 高精度で文字起こし」と同じ処理を実行します。"
 TOOLTIP_MP3 = "録音した音声を MP3 ファイルとして保存します。"
 TOOLTIP_HQ = (
-    "録音または開いた音声の全体を Whisper large-v3 で文字起こしします。"
-    "ライブ転写より時間はかかりますが、より正確です。"
+    "録音または開いた音声の全体を Whisper large-v3 で文字起こしします。ライブ転写より時間はかかりますが、より正確です。"
 )
 TOOLTIP_REFINE = (
     "右の「メモ」に書いた固有名詞・専門用語を正しい表記とみなし、"
@@ -240,6 +245,177 @@ MIC_HELP = (
     "システム設定 ＞ プライバシーとセキュリティ ＞ マイク で\n"
     "アクセスが許可されているかご確認ください。"
 )
+
+UI_TEXT = {
+    "ja": {
+        "tagline": "録音・文字起こし・議事録",
+        "status_ready": "準備完了",
+        "file_menu": "ファイル",
+        "open_audio_menu": "音声を開く…",
+        "open_session_menu": "セッションを開く…",
+        "save_session_menu": "セッションを保存…",
+        "save_transcript_menu": "文字起こしを保存…",
+        "save_mp3_menu": "MP3 を保存…",
+        "dark": "Dark",
+        "input": "入力",
+        "mic_capture": "マイク音声を取る",
+        "noise_reduce": "ノイズ除去",
+        "record": LABEL_RECORD,
+        "stop": LABEL_STOP,
+        "live": "ライブ転写",
+        "save_mp3": "MP3 保存",
+        "open_audio": "音声を開く",
+        "input_level": "入力レベル",
+        "mic_off_level": "マイク未使用",
+        "analysis": "解析中",
+        "transcript": "文字起こし",
+        "save": "保存",
+        "load": "読込",
+        "hq": LABEL_HQ,
+        "refine": LABEL_REFINE,
+        "minutes": LABEL_MINUTES,
+        "workflow": WORKFLOW_HINT,
+        "play": LABEL_PLAY,
+        "pause": LABEL_PAUSE,
+        "click_timestamp": "行頭の [時刻] をクリックでその位置から再生",
+        "notes": "メモ",
+        "notes_hint": "固有名詞・専門用語・人名などを入力すると、ライブ転写と「② メモで校正」の両方で活用されます。",
+        "recording": "録音中",
+        "live_tag": "ライブ",
+        "noise_tag": "ノイズ除去",
+        "mic_off_tag": "マイクなし",
+        "stopped": "停止 · {seconds:.1f}秒",
+        "finalizing": "文字起こしを確定中...",
+        "transcribing": "文字起こし中...",
+        "transcribe_progress": "文字起こし進捗",
+        "transcribe_progress_pct": "文字起こし進捗 · {pct}%",
+        "hq_running": "高精度で文字起こし中（{model}）{what}...",
+        "hq_download": "初回モデルをダウンロード中（数分かかります）...",
+        "hq_done": "高精度文字起こし完了（{model}）",
+        "hq_empty": "文字起こし結果が空でした",
+        "hq_failed": "文字起こしに失敗しました",
+        "refining": "校正中...",
+        "refine_running": "Ollama で校正中（{model}）...",
+        "refine_done": "校正完了",
+        "refine_failed": "校正に失敗しました",
+        "minutes_generating": "生成中...",
+        "minutes_running": "Ollama で議事録を生成中（{model}）...",
+        "minutes_done": "議事録ができました",
+        "minutes_failed": "議事録の生成に失敗しました",
+        "minutes_window": "議事録",
+        "close": "閉じる",
+        "save_as_md": ".md として保存",
+        "no_recording": "録音がありません。",
+        "nothing_to_save": "保存する内容がありません。",
+        "no_transcript": "文字起こしテキストがありません。",
+        "empty_notes": "メモが空です。固有名詞や用語をメモ欄に入力してから実行してください。",
+        "saved": "保存しました",
+        "save_to": "保存先:\n{path}",
+        "session_save_to": "セッションの保存先:\n{path}",
+        "save_error": "保存できませんでした:\n{error}",
+        "load_error": "読み込めませんでした:\n{error}",
+        "start_record_error": "録音を開始できませんでした",
+        "generic_error": "エラー",
+        "save_recording_title": "録音を保存",
+        "save_transcript_title": "文字起こしを保存",
+        "save_notes_title": "メモを保存",
+        "load_notes_title": "メモを読み込み",
+        "open_audio_title": "音声ファイルを開く",
+        "save_minutes_title": "議事録を保存",
+        "save_session_title": "セッションを保存",
+        "open_session_title": "セッションを開く",
+        "session_loaded": "セッションを読み込みました · {name}",
+        "session_open_failed": "セッションを開けませんでした",
+        "session_save_failed": "セッションの保存に失敗しました",
+    },
+    "en": {
+        "tagline": "Recorder, transcription, minutes",
+        "status_ready": "Ready",
+        "file_menu": "File",
+        "open_audio_menu": "Open audio...",
+        "open_session_menu": "Open session...",
+        "save_session_menu": "Save session...",
+        "save_transcript_menu": "Save transcript...",
+        "save_mp3_menu": "Save MP3...",
+        "dark": "Dark",
+        "input": "Input",
+        "mic_capture": "Capture microphone",
+        "noise_reduce": "Noise reduction",
+        "record": "●  Record",
+        "stop": "■  Stop",
+        "live": "Live transcript",
+        "save_mp3": "Save MP3",
+        "open_audio": "Open audio",
+        "input_level": "Input level",
+        "mic_off_level": "Mic off",
+        "analysis": "Analyzing",
+        "transcript": "Transcript",
+        "save": "Save",
+        "load": "Load",
+        "hq": "① Transcribe",
+        "refine": "② Correct with notes",
+        "minutes": "③ Create minutes",
+        "workflow": "Flow:  Record  →  ① Transcribe  →  Add terms to notes  →  ② Correct  →  ③ Minutes",
+        "play": "▶  Play",
+        "pause": "❚❚  Pause",
+        "click_timestamp": "Click a leading [time] to play from that point",
+        "notes": "Notes",
+        "notes_hint": "Add proper nouns, jargon, names, and terms. Lethe uses them for live transcription and note-based correction.",
+        "recording": "Recording",
+        "live_tag": "Live",
+        "noise_tag": "Noise reduction",
+        "mic_off_tag": "Mic off",
+        "stopped": "Stopped · {seconds:.1f}s",
+        "finalizing": "Finalizing transcript...",
+        "transcribing": "Transcribing...",
+        "transcribe_progress": "Transcription progress",
+        "transcribe_progress_pct": "Transcription progress · {pct}%",
+        "hq_running": "High-quality transcription ({model}){what}...",
+        "hq_download": "Downloading the model for first use...",
+        "hq_done": "High-quality transcription complete ({model})",
+        "hq_empty": "The transcription result was empty",
+        "hq_failed": "Transcription failed",
+        "refining": "Correcting...",
+        "refine_running": "Correcting with Ollama ({model})...",
+        "refine_done": "Correction complete",
+        "refine_failed": "Correction failed",
+        "minutes_generating": "Generating...",
+        "minutes_running": "Generating minutes with Ollama ({model})...",
+        "minutes_done": "Minutes are ready",
+        "minutes_failed": "Minutes generation failed",
+        "minutes_window": "Minutes",
+        "close": "Close",
+        "save_as_md": "Save as .md",
+        "no_recording": "No recording is available.",
+        "nothing_to_save": "There is nothing to save.",
+        "no_transcript": "There is no transcript text.",
+        "empty_notes": "Notes are empty. Add proper nouns or terms before running correction.",
+        "saved": "Saved",
+        "save_to": "Saved to:\n{path}",
+        "session_save_to": "Session saved to:\n{path}",
+        "save_error": "Could not save:\n{error}",
+        "load_error": "Could not load:\n{error}",
+        "start_record_error": "Could not start recording",
+        "generic_error": "Error",
+        "save_recording_title": "Save recording",
+        "save_transcript_title": "Save transcript",
+        "save_notes_title": "Save notes",
+        "load_notes_title": "Load notes",
+        "open_audio_title": "Open audio file",
+        "save_minutes_title": "Save minutes",
+        "save_session_title": "Save session",
+        "open_session_title": "Open session",
+        "session_loaded": "Loaded session · {name}",
+        "session_open_failed": "Could not open session",
+        "session_save_failed": "Could not save session",
+    },
+}
+
+
+def text_for(language: str, key: str, **kwargs) -> str:
+    language = language if language in UI_TEXT else "ja"
+    template = UI_TEXT[language].get(key, UI_TEXT["ja"][key])
+    return template.format(**kwargs) if kwargs else template
 
 
 def _fmt_time(seconds: float) -> str:
@@ -640,6 +816,7 @@ class App:
         self.root = root
         self.is_recording = False
         self._busy = False  # True while an HQ / refine / minutes worker runs
+        self._status_kind = "ready"
         self._tick_job: str | None = None
         self._elapsed = 0
         self._meter_level = 0.0
@@ -651,6 +828,7 @@ class App:
         self._transcriber = None
         self._player = Player()
         self._settings = settings_store.load_settings()
+        self._mic_capture_var = tk.BooleanVar(value=bool(self._settings.get("mic_capture", True)))
         self._live_var = tk.BooleanVar(value=bool(self._settings.get("live")))
         self._nr_var = tk.BooleanVar(value=bool(self._settings.get("noise_reduce")))
         self._llm_models = settings_store.llm_models()
@@ -662,15 +840,17 @@ class App:
         self._ollama_url = settings_store.model_config()["ollama_url"]
         self._theme_var = tk.StringVar(value=THEMES.get(self._settings.get("theme"), THEMES["midnight"])["label"])
         self._dark_var = tk.BooleanVar(value=bool(self._settings.get("dark_mode")))
+        saved_language = str(self._settings.get("language") or "ja")
+        self._language_var = tk.StringVar(value=LANGUAGES.get(saved_language, LANGUAGES["ja"]))
         _apply_palette(self._theme_key(), self._dark_var.get())
         self._device_index: int | None = self._settings.get("device_index")
         self._devices: list[tuple[str, int | None]] = [("システム既定", None)]
         self._notes_cache = ""
         self.recorder = MicRecorder()
 
-        root.title(f"{APP_NAME} — {APP_TAGLINE}")
+        root.title(f"{APP_NAME} — {self._tr('tagline')}")
         root.geometry(self._settings.get("geometry") or "1060x740")
-        root.minsize(900, 600)
+        root.minsize(900, 700)
         root.configure(background=BG)
 
         self._configure_style()
@@ -782,7 +962,51 @@ class App:
             indicatorcolor=[("selected", ACCENT), ("active", ACCENT_SOFT)],
         )
         style.configure("TSeparator", background=BORDER)
-        style.configure("TCombobox", fieldbackground=SURFACE_2, background=SURFACE, foreground=TEXT, bordercolor=BORDER, arrowcolor=TEXT)
+        style.configure(
+            "TCombobox",
+            background=SURFACE_2,
+            fieldbackground=SURFACE_2,
+            foreground=TEXT,
+            bordercolor=BORDER,
+            lightcolor=BORDER,
+            darkcolor=BORDER,
+            arrowcolor=ACCENT,
+            selectbackground=ACCENT_SOFT,
+            selectforeground=TEXT,
+            relief="flat",
+            borderwidth=1,
+            padding=(8, 5),
+            arrowsize=14,
+        )
+        style.map(
+            "TCombobox",
+            background=[
+                ("disabled", DISABLED_BG),
+                ("pressed", SURFACE),
+                ("active", SURFACE),
+                ("readonly", SURFACE_2),
+            ],
+            fieldbackground=[
+                ("disabled", DISABLED_BG),
+                ("pressed", SURFACE),
+                ("active", SURFACE),
+                ("readonly", SURFACE_2),
+            ],
+            foreground=[("disabled", DISABLED_FG), ("readonly", TEXT)],
+            bordercolor=[("disabled", DISABLED_BG), ("focus", ACCENT), ("active", ACCENT)],
+            lightcolor=[("disabled", DISABLED_BG), ("focus", ACCENT), ("active", ACCENT)],
+            darkcolor=[("disabled", DISABLED_BG), ("focus", ACCENT_DARK), ("active", ACCENT_DARK)],
+            arrowcolor=[("disabled", DISABLED_FG), ("pressed", ACCENT_DARK), ("active", ACCENT_DARK), ("readonly", ACCENT)],
+        )
+        self.root.option_add("*TCombobox*Listbox.background", SURFACE_2)
+        self.root.option_add("*TCombobox*Listbox.foreground", TEXT)
+        self.root.option_add("*TCombobox*Listbox.selectBackground", ACCENT_SOFT)
+        self.root.option_add("*TCombobox*Listbox.selectForeground", TEXT)
+        self.root.option_add("*TCombobox*Listbox.activeStyle", "none")
+        self.root.option_add("*TCombobox*Listbox.borderWidth", 1)
+        self.root.option_add("*TCombobox*Listbox.highlightThickness", 1)
+        self.root.option_add("*TCombobox*Listbox.highlightBackground", BORDER)
+        self.root.option_add("*TCombobox*Listbox.highlightColor", ACCENT)
         style.configure(
             "Lethe.Horizontal.TProgressbar",
             background=ACCENT,
@@ -796,12 +1020,50 @@ class App:
     def _theme_key(self) -> str:
         return THEME_LABELS.get(self._theme_var.get(), "midnight")
 
+    def _language_code(self) -> str:
+        return LANGUAGE_CODES.get(self._language_var.get(), "ja")
+
+    def _tr(self, key: str, **kwargs) -> str:
+        return text_for(self._language_code(), key, **kwargs)
+
     def _on_theme_change(self, _event=None) -> None:
         _apply_palette(self._theme_key(), self._dark_var.get())
         self.root.configure(background=BG)
         self._configure_style()
         self._restyle_text_widgets()
-        self._set_status(self.status["text"], "ready")
+        self._set_status(self.status["text"], self._status_kind)
+
+    def _on_language_change(self, _event=None) -> None:
+        self._build_menu()
+        self._apply_language()
+
+    def _apply_language(self) -> None:
+        self.root.title(f"{APP_NAME} — {self._tr('tagline')}")
+        self.tagline_label.config(text=f"  {self._tr('tagline')}")
+        self.dark_check.config(text=self._tr("dark"))
+        self.input_label.config(text=self._tr("input"))
+        self.mic_check.config(text=self._tr("mic_capture"))
+        self.nr_check.config(text=self._tr("noise_reduce"))
+        self.record_button.config(text=self._tr("stop" if self.is_recording else "record"))
+        self.live_check.config(text=self._tr("live"))
+        self.export_mp3_button.config(text=self._tr("save_mp3"))
+        self.open_button.config(text=self._tr("open_audio"))
+        self.transcript_title.config(text=self._tr("transcript"))
+        self.export_txt_button.config(text=self._tr("save"))
+        self.hq_button.config(
+            text=self._tr("hq") if str(self.hq_button["state"]) != "disabled" or not self._busy else self.hq_button["text"]
+        )
+        self.refine_button.config(text=self._tr("refine") if not self._busy else self.refine_button["text"])
+        self.minutes_button.config(text=self._tr("minutes") if not self._busy else self.minutes_button["text"])
+        self.workflow_label.config(text=self._tr("workflow"))
+        self.play_button.config(text=self._tr("pause") if self._player.is_playing else self._tr("play"))
+        self.timestamp_hint.config(text=self._tr("click_timestamp"))
+        self.notes_title.config(text=self._tr("notes"))
+        self.notes_load_button.config(text=self._tr("load"))
+        self.notes_save_button.config(text=self._tr("save"))
+        self.notes_hint.config(text=self._tr("notes_hint"))
+        if self.status["text"] in {text_for("ja", "status_ready"), text_for("en", "status_ready")}:
+            self._set_status(self._tr("status_ready"), "ready")
 
     def _restyle_text_widgets(self) -> None:
         for widget_name in ("transcript", "notes_text"):
@@ -822,14 +1084,14 @@ class App:
     def _build_menu(self) -> None:
         menubar = tk.Menu(self.root)
         file_menu = tk.Menu(menubar, tearoff=False)
-        file_menu.add_command(label="音声を開く…", command=self.open_audio, accelerator="Cmd/Ctrl+O")
+        file_menu.add_command(label=self._tr("open_audio_menu"), command=self.open_audio, accelerator="Cmd/Ctrl+O")
         file_menu.add_separator()
-        file_menu.add_command(label="セッションを開く…", command=self.open_session)
-        file_menu.add_command(label="セッションを保存…", command=self.save_session)
+        file_menu.add_command(label=self._tr("open_session_menu"), command=self.open_session)
+        file_menu.add_command(label=self._tr("save_session_menu"), command=self.save_session)
         file_menu.add_separator()
-        file_menu.add_command(label="文字起こしを保存…", command=self.export_transcript, accelerator="Cmd/Ctrl+S")
-        file_menu.add_command(label="MP3 を保存…", command=self.export_mp3)
-        menubar.add_cascade(label="ファイル", menu=file_menu)
+        file_menu.add_command(label=self._tr("save_transcript_menu"), command=self.export_transcript, accelerator="Cmd/Ctrl+S")
+        file_menu.add_command(label=self._tr("save_mp3_menu"), command=self.export_mp3)
+        menubar.add_cascade(label=self._tr("file_menu"), menu=file_menu)
         self.root.config(menu=menubar)
 
     def _build_header(self) -> None:
@@ -837,14 +1099,31 @@ class App:
         header.pack(fill="x", padx=10, pady=(10, 0))
         inner = ttk.Frame(header, style="Header.TFrame")
         inner.pack(fill="x", padx=PAD_X, pady=10)
-        ttk.Label(inner, text=APP_NAME, style="Wordmark.TLabel").pack(side="left")
-        ttk.Label(inner, text=f"  {APP_TAGLINE}", style="Tagline.TLabel").pack(side="left", anchor="s", pady=(0, 4))
+        inner.columnconfigure(1, weight=1)
+        inner.columnconfigure(4, weight=1)
+        ttk.Label(inner, text=APP_NAME, style="Wordmark.TLabel").grid(row=0, column=0, sticky="w")
+        self.tagline_label = ttk.Label(inner, text=f"  {self._tr('tagline')}", style="Tagline.TLabel")
+        self.tagline_label.grid(row=0, column=1, sticky="w", padx=(4, 12), pady=(6, 0))
         self.timer = ttk.Label(inner, text="00:00", style="Timer.TLabel")
-        self.timer.pack(side="right")
-        self.status = ttk.Label(inner, text="準備完了", style="Status.TLabel")
-        self.status.pack(side="right", padx=(0, 16))
-        self.dark_check = ttk.Checkbutton(inner, text="Dark", variable=self._dark_var, command=self._on_theme_change)
-        self.dark_check.pack(side="right", padx=(0, 10))
+        self.timer.grid(row=0, column=5, sticky="e")
+        self.status_banner = tk.Frame(inner, bd=0, highlightthickness=1)
+        self.status_banner.grid(row=1, column=5, sticky="e", pady=(8, 0), ipadx=10, ipady=4)
+        self.status_icon = tk.Label(self.status_banner, text="OK", width=3, anchor="center", font=("", 9, "bold"))
+        self.status_icon.pack(side="left", padx=(0, 7))
+        self.status = tk.Label(self.status_banner, text=self._tr("status_ready"), font=("", 11, "bold"))
+        self.status.pack(side="left")
+        self._set_status(self._tr("status_ready"), "ready")
+        self.dark_check = ttk.Checkbutton(inner, text=self._tr("dark"), variable=self._dark_var, command=self._on_theme_change)
+        self.dark_check.grid(row=1, column=4, sticky="e", padx=(8, 10), pady=(8, 0))
+        self.language_combo = ttk.Combobox(
+            inner,
+            state="readonly",
+            width=9,
+            values=list(LANGUAGE_CODES),
+            textvariable=self._language_var,
+        )
+        self.language_combo.grid(row=1, column=3, sticky="e", padx=(8, 0), pady=(8, 0))
+        self.language_combo.bind("<<ComboboxSelected>>", self._on_language_change)
         self.theme_combo = ttk.Combobox(
             inner,
             state="readonly",
@@ -852,21 +1131,34 @@ class App:
             values=list(THEME_LABELS),
             textvariable=self._theme_var,
         )
-        self.theme_combo.pack(side="right", padx=(0, 8))
+        self.theme_combo.grid(row=1, column=2, sticky="e", padx=(8, 0), pady=(8, 0))
         self.theme_combo.bind("<<ComboboxSelected>>", self._on_theme_change)
+        inner.bind("<Configure>", lambda event: self.tagline_label.configure(wraplength=max(120, event.width // 3)))
 
     # ---------- left pane (recorder + playback + transcript) ----------
 
     def _build_left(self, parent: ttk.Frame) -> None:
-        # --- source row: input device + noise reduce ---
+        # --- source row: input device + recording options ---
         source = ttk.Frame(parent, style="Card.TFrame")
         source.pack(fill="x", padx=PAD_X, pady=(PAD_Y, 4))
-        ttk.Label(source, text="入力", style="Card.TLabel").pack(side="left")
+        source.columnconfigure(1, weight=1)
+        source.columnconfigure(4, weight=1)
+        self.input_label = ttk.Label(source, text=self._tr("input"), style="Card.TLabel")
+        self.input_label.grid(row=0, column=0, sticky="w", pady=(0, 6))
         self.device_combo = ttk.Combobox(source, state="readonly", width=28)
-        self.device_combo.pack(side="left", padx=(8, 0))
+        self.device_combo.grid(row=0, column=1, sticky="ew", padx=(8, 4), pady=(0, 6))
         self.device_combo.bind("<<ComboboxSelected>>", self._on_device_change)
-        ttk.Button(source, text="↻", width=3, command=self.refresh_devices).pack(side="left", padx=(4, 0))
-        ttk.Label(source, text="LLM", style="Card.TLabel").pack(side="left", padx=(16, 0))
+        self.refresh_button = ttk.Button(source, text="↻", width=3, command=self.refresh_devices)
+        self.refresh_button.grid(row=0, column=2, sticky="w", pady=(0, 6))
+        self.mic_check = ttk.Checkbutton(
+            source,
+            text=self._tr("mic_capture"),
+            variable=self._mic_capture_var,
+            command=self._on_mic_capture_change,
+        )
+        self.mic_check.grid(row=0, column=4, sticky="e", pady=(0, 6))
+        Tooltip(self.mic_check, TOOLTIP_MIC_CAPTURE)
+        ttk.Label(source, text="LLM", style="Card.TLabel").grid(row=1, column=0, sticky="w")
         self.llm_combo = ttk.Combobox(
             source,
             state="readonly",
@@ -874,28 +1166,34 @@ class App:
             values=self._llm_models,
             textvariable=self._llm_model_var,
         )
-        self.llm_combo.pack(side="left", padx=(8, 0))
-        self.nr_check = ttk.Checkbutton(source, text="ノイズ除去", variable=self._nr_var)
-        self.nr_check.pack(side="right")
+        self.llm_combo.grid(row=1, column=1, columnspan=2, sticky="ew", padx=(8, 4), pady=(0, 6))
+        self.nr_check = ttk.Checkbutton(source, text=self._tr("noise_reduce"), variable=self._nr_var)
+        self.nr_check.grid(row=2, column=0, columnspan=5, sticky="w")
         Tooltip(self.nr_check, TOOLTIP_NR)
         self.refresh_devices()
+        self._update_mic_capture_controls()
 
         # --- controls: record + live | open audio + export mp3 ---
         controls = ttk.Frame(parent, style="Card.TFrame")
         controls.pack(fill="x", padx=PAD_X, pady=(6, 4))
+        controls.columnconfigure(0, weight=1)
+        controls.columnconfigure(1, weight=1)
         self.record_button = ttk.Button(
-            controls, text=LABEL_RECORD, width=14, style="Accent.TButton", command=self.toggle_record
+            controls, text=self._tr("record"), width=14, style="Accent.TButton", command=self.toggle_record
         )
-        self.record_button.pack(side="left")
+        self.record_button.grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 6))
         Tooltip(self.record_button, TOOLTIP_RECORD)
-        self.live_check = ttk.Checkbutton(controls, text="ライブ転写", variable=self._live_var)
-        self.live_check.pack(side="left", padx=(12, 0))
+        self.live_check = ttk.Checkbutton(controls, text=self._tr("live"), variable=self._live_var)
+        self.live_check.grid(row=0, column=1, sticky="w", padx=(6, 0), pady=(0, 6))
         Tooltip(self.live_check, TOOLTIP_LIVE)
-        self.export_mp3_button = ttk.Button(controls, text="MP3 保存", width=11, command=self.export_mp3, state="disabled")
-        self.export_mp3_button.pack(side="right")
+        self._update_mic_capture_controls()
+        self.export_mp3_button = ttk.Button(
+            controls, text=self._tr("save_mp3"), width=11, command=self.export_mp3, state="disabled"
+        )
+        self.export_mp3_button.grid(row=1, column=1, sticky="ew", padx=(6, 0))
         Tooltip(self.export_mp3_button, TOOLTIP_MP3)
-        self.open_button = ttk.Button(controls, text="音声を開く", width=11, command=self.open_audio)
-        self.open_button.pack(side="right", padx=(0, 6))
+        self.open_button = ttk.Button(controls, text=self._tr("open_audio"), width=11, command=self.open_audio)
+        self.open_button.grid(row=1, column=0, sticky="ew", padx=(0, 6))
         Tooltip(self.open_button, TOOLTIP_OPEN)
 
         # --- wave row: audio input while recording / analysis pulse while busy ---
@@ -911,9 +1209,10 @@ class App:
         # --- transcript section: title + export ---
         transcript_header = ttk.Frame(parent, style="Card.TFrame")
         transcript_header.pack(fill="x", padx=PAD_X, pady=(12, 4))
-        ttk.Label(transcript_header, text="文字起こし", style="Title.TLabel").pack(side="left")
+        self.transcript_title = ttk.Label(transcript_header, text=self._tr("transcript"), style="Title.TLabel")
+        self.transcript_title.pack(side="left")
         self.export_txt_button = ttk.Button(
-            transcript_header, text="保存", width=8, command=self.export_transcript, state="disabled"
+            transcript_header, text=self._tr("save"), width=8, command=self.export_transcript, state="disabled"
         )
         self.export_txt_button.pack(side="right")
         Tooltip(self.export_txt_button, TOOLTIP_EXPORT_TXT)
@@ -921,33 +1220,44 @@ class App:
         # --- numbered workflow actions ---
         actions = ttk.Frame(parent, style="Card.TFrame")
         actions.pack(fill="x", padx=PAD_X, pady=(0, 2))
-        self.hq_button = ttk.Button(actions, text=LABEL_HQ, style="Step.TButton", command=self.hq_transcribe, state="disabled")
-        self.hq_button.pack(side="left")
+        actions.columnconfigure(0, weight=1)
+        actions.columnconfigure(1, weight=1)
+        self.hq_button = ttk.Button(
+            actions, text=self._tr("hq"), style="Step.TButton", command=self.hq_transcribe, state="disabled"
+        )
+        self.hq_button.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
         Tooltip(self.hq_button, TOOLTIP_HQ)
         self.refine_button = ttk.Button(
-            actions, text=LABEL_REFINE, style="Step.TButton", command=self.refine_transcript, state="disabled"
+            actions, text=self._tr("refine"), style="Step.TButton", command=self.refine_transcript, state="disabled"
         )
-        self.refine_button.pack(side="left", padx=(6, 0))
+        self.refine_button.grid(row=1, column=0, sticky="ew", padx=(0, 3))
         Tooltip(self.refine_button, TOOLTIP_REFINE)
         self.minutes_button = ttk.Button(
-            actions, text=LABEL_MINUTES, style="Step.TButton", command=self.generate_minutes, state="disabled"
+            actions, text=self._tr("minutes"), style="Step.TButton", command=self.generate_minutes, state="disabled"
         )
-        self.minutes_button.pack(side="left", padx=(6, 0))
+        self.minutes_button.grid(row=1, column=1, sticky="ew", padx=(3, 0))
         Tooltip(self.minutes_button, TOOLTIP_MINUTES)
 
-        ttk.Label(parent, text=WORKFLOW_HINT, style="Workflow.TLabel").pack(anchor="w", padx=PAD_X, pady=(4, 6))
+        self.workflow_label = ttk.Label(parent, text=self._tr("workflow"), style="Workflow.TLabel")
+        self.workflow_label.pack(anchor="w", padx=PAD_X, pady=(4, 6))
+        parent.bind(
+            "<Configure>", lambda event: self.workflow_label.configure(wraplength=max(160, event.width - PAD_X * 2)), add="+"
+        )
 
         # --- playback bar ---
         playback = ttk.Frame(parent, style="Card.TFrame")
         playback.pack(fill="x", padx=PAD_X, pady=(0, 6))
-        self.play_button = ttk.Button(playback, text=LABEL_PLAY, width=12, command=self.toggle_play, state="disabled")
-        self.play_button.pack(side="left")
+        playback.columnconfigure(2, weight=1)
+        self.play_button = ttk.Button(playback, text=self._tr("play"), width=12, command=self.toggle_play, state="disabled")
+        self.play_button.grid(row=0, column=0, sticky="ew", padx=(0, 4), pady=(0, 4))
         Tooltip(self.play_button, TOOLTIP_PLAY)
         self.stop_play_button = ttk.Button(playback, text="■", width=4, command=self.stop_play, state="disabled")
-        self.stop_play_button.pack(side="left", padx=(4, 0))
+        self.stop_play_button.grid(row=0, column=1, sticky="w", padx=(4, 0), pady=(0, 4))
         self.position_label = ttk.Label(playback, text="00:00 / 00:00", style="Hint.TLabel")
-        self.position_label.pack(side="left", padx=(10, 0))
-        ttk.Label(playback, text="行頭の [時刻] をクリックでその位置から再生", style="Hint.TLabel").pack(side="right")
+        self.position_label.grid(row=0, column=2, sticky="w", padx=(10, 0), pady=(0, 4))
+        self.timestamp_hint = ttk.Label(playback, text=self._tr("click_timestamp"), style="Hint.TLabel")
+        self.timestamp_hint.grid(row=1, column=0, columnspan=3, sticky="w")
+        playback.bind("<Configure>", lambda event: self.timestamp_hint.configure(wraplength=max(160, event.width)), add="+")
 
         text_frame = ttk.Frame(parent, style="Card.TFrame")
         text_frame.pack(fill="both", expand=True, padx=PAD_X, pady=(0, PAD_Y))
@@ -984,17 +1294,24 @@ class App:
     def _build_right(self, parent: ttk.Frame) -> None:
         notes_header = ttk.Frame(parent, style="Card.TFrame")
         notes_header.pack(fill="x", padx=PAD_X, pady=(PAD_Y, 4))
-        ttk.Label(notes_header, text="メモ", style="Title.TLabel").pack(side="left")
-        ttk.Button(notes_header, text="読込", width=8, command=self.load_notes).pack(side="right")
-        ttk.Button(notes_header, text="保存", width=8, command=self.save_notes).pack(side="right", padx=(0, 6))
+        self.notes_title = ttk.Label(notes_header, text=self._tr("notes"), style="Title.TLabel")
+        self.notes_title.pack(side="left")
+        self.notes_load_button = ttk.Button(notes_header, text=self._tr("load"), width=8, command=self.load_notes)
+        self.notes_load_button.pack(side="right")
+        self.notes_save_button = ttk.Button(notes_header, text=self._tr("save"), width=8, command=self.save_notes)
+        self.notes_save_button.pack(side="right", padx=(0, 6))
 
-        ttk.Label(
+        self.notes_hint = ttk.Label(
             parent,
-            text="固有名詞・専門用語・人名などを入力すると、ライブ転写と「② メモで校正」の両方で活用されます。",
+            text=self._tr("notes_hint"),
             style="Hint.TLabel",
             wraplength=380,
             justify="left",
-        ).pack(anchor="w", padx=PAD_X, pady=(0, 6))
+        )
+        self.notes_hint.pack(anchor="w", padx=PAD_X, pady=(0, 6))
+        parent.bind(
+            "<Configure>", lambda event: self.notes_hint.configure(wraplength=max(160, event.width - PAD_X * 2)), add="+"
+        )
 
         ttk.Separator(parent, orient="horizontal").pack(fill="x", padx=PAD_X)
 
@@ -1053,8 +1370,9 @@ class App:
             self._start_recording()
 
     def _start_recording(self) -> None:
-        live = self._live_var.get()
-        nr = self._nr_var.get()
+        mic_capture = self._mic_capture_var.get()
+        live = self._live_var.get() and mic_capture
+        nr = self._nr_var.get() and mic_capture
         preprocessor = self._build_preprocessor() if nr else None
         self._player.reset()
         self.recorder.cleanup()  # drop the previous take's temp WAV
@@ -1076,32 +1394,40 @@ class App:
         else:
             self.recorder = MicRecorder()
 
-        try:
-            self.recorder.start(device=self._device_index)
-        except Exception as exc:
-            if self._transcriber is not None:
-                self._transcriber.stop()
-                self._transcriber = None
-            messagebox.showerror("録音を開始できませんでした", f"{type(exc).__name__}: {exc}{MIC_HELP}")
-            return
+        if mic_capture:
+            try:
+                self.recorder.start(device=self._device_index)
+            except Exception as exc:
+                if self._transcriber is not None:
+                    self._transcriber.stop()
+                    self._transcriber = None
+                messagebox.showerror(self._tr("start_record_error"), f"{type(exc).__name__}: {exc}{MIC_HELP}")
+                return
 
         self.is_recording = True
         self._elapsed = 0
         self.timer.config(text="00:00")
-        tags = [t for t, on in (("ライブ", live), ("ノイズ除去", nr)) if on]
+        tag_pairs = (
+            (self._tr("mic_off_tag"), not mic_capture),
+            (self._tr("live_tag"), live),
+            (self._tr("noise_tag"), nr),
+        )
+        tags = [text for text, on in tag_pairs if on]
         suffix = f"（{' / '.join(tags)}）" if tags else ""
-        self._set_status(f"録音中{suffix}...", "recording")
-        self.record_button.config(text=LABEL_STOP, style="Danger.TButton")
+        self._set_status(f"{self._tr('recording')}{suffix}...", "recording")
+        self.record_button.config(text=self._tr("stop"), style="Danger.TButton")
         self.export_mp3_button.config(state="disabled")
         self.open_button.config(state="disabled")
         self.hq_button.config(state="disabled")
         self._set_transcript_actions(False)
         self._set_playback_enabled(False)
+        self.mic_check.state(["disabled"])
         self.live_check.state(["disabled"])
         self.nr_check.state(["disabled"])
         self.device_combo.state(["disabled"])
-        self.meter_caption.config(text="入力レベル")
-        self.wave.set_mode("recording")
+        self.refresh_button.config(state="disabled")
+        self.meter_caption.config(text=self._tr("input_level") if mic_capture else self._tr("mic_off_level"))
+        self.wave.set_mode("recording" if mic_capture else "idle")
         self.wave.set_level(0)
         self._schedule_tick()
 
@@ -1114,11 +1440,11 @@ class App:
         self.wave.set_mode("idle")
         self.wave.set_level(0)
         self.meter_caption.config(text="")
-        self._set_status(f"停止 · {self.recorder.duration_seconds:.1f}秒", "ready")
-        self.record_button.config(text=LABEL_RECORD, style="Accent.TButton")
-        self.live_check.state(["!disabled"])
-        self.nr_check.state(["!disabled"])
-        self.device_combo.state(["!disabled"])
+        duration = self.recorder.duration_seconds if self.recorder.has_recording else float(self._elapsed)
+        self._set_status(self._tr("stopped", seconds=duration), "ready")
+        self.record_button.config(text=self._tr("record"), style="Accent.TButton")
+        self.mic_check.state(["!disabled"])
+        self._update_mic_capture_controls()
         self.open_button.config(state="normal")
         if self.recorder.has_recording:
             self.export_mp3_button.config(state="normal")
@@ -1126,12 +1452,12 @@ class App:
             self._player.load(self.recorder.audio_float32, SAMPLE_RATE)
             self._set_playback_enabled(True)
         if self._transcriber is not None:
-            self._set_status("文字起こしを確定中...", "busy")
+            self._set_status(self._tr("finalizing"), "busy")
             self.root.update_idletasks()
             self._transcriber.stop()
             self._drain_transcript_queue()
             self._transcriber = None
-            self._set_status(f"停止 · {self.recorder.duration_seconds:.1f}秒", "ready")
+            self._set_status(self._tr("stopped", seconds=duration), "ready")
         self._sync_transcript_actions()
         # Two-tier: when a live preview was shown, automatically run the
         # accurate full-file pass so the transcript settles on the HQ result.
@@ -1156,9 +1482,25 @@ class App:
             for i, (_label, idx) in enumerate(self._devices):
                 if idx == self._device_index:
                     self.device_combo.current(i)
+                    self._update_mic_capture_controls()
                     return
         self.device_combo.current(0)
         self._device_index = None
+        self._update_mic_capture_controls()
+
+    def _on_mic_capture_change(self) -> None:
+        self._update_mic_capture_controls()
+
+    def _update_mic_capture_controls(self) -> None:
+        if self.is_recording:
+            return
+        if not all(hasattr(self, name) for name in ("device_combo", "refresh_button", "live_check", "nr_check")):
+            return
+        enabled = self._mic_capture_var.get()
+        self.device_combo.state(["!disabled", "readonly"] if enabled else ["disabled"])
+        self.refresh_button.config(state="normal" if enabled else "disabled")
+        self.live_check.state(["!disabled"] if enabled else ["disabled"])
+        self.nr_check.state(["!disabled"] if enabled else ["disabled"])
 
     def _on_device_change(self, _event) -> None:
         idx = self.device_combo.current()
@@ -1177,20 +1519,20 @@ class App:
             return
         if self._player.is_playing:
             self._player.pause()
-            self.play_button.config(text=LABEL_PLAY)
+            self.play_button.config(text=self._tr("play"))
         else:
             self._player.play()
-            self.play_button.config(text=LABEL_PAUSE)
+            self.play_button.config(text=self._tr("pause"))
 
     def stop_play(self) -> None:
         self._player.reset()
-        self.play_button.config(text=LABEL_PLAY)
+        self.play_button.config(text=self._tr("play"))
 
     def _seek(self, seconds: float) -> None:
         if not self._player.has_audio:
             return
         self._player.play(from_seconds=seconds)
-        self.play_button.config(text=LABEL_PAUSE)
+        self.play_button.config(text=self._tr("pause"))
 
     def _on_timestamp_click(self, event):
         index = self.transcript.index(f"@{event.x},{event.y}")
@@ -1215,13 +1557,13 @@ class App:
 
     def export_mp3(self) -> None:
         if not self.recorder.has_recording:
-            messagebox.showinfo("MP3 保存", "録音がありません。")
+            messagebox.showinfo(self._tr("save_mp3"), self._tr("no_recording"))
             return
         path = filedialog.asksaveasfilename(
             defaultextension=".mp3",
             filetypes=[("MP3 音声", "*.mp3"), ("すべてのファイル", "*.*")],
             initialfile="recording.mp3",
-            title="録音を保存",
+            title=self._tr("save_recording_title"),
             **_initialdir_option("audio_dir"),
         )
         if not path:
@@ -1230,19 +1572,19 @@ class App:
         try:
             self.recorder.encode_mp3(path, preprocessor=preprocessor)
         except Exception as exc:
-            messagebox.showerror("エラー", f"保存できませんでした:\n{exc}")
+            messagebox.showerror(self._tr("generic_error"), self._tr("save_error", error=exc))
             return
-        messagebox.showinfo("保存しました", f"保存先:\n{path}")
+        messagebox.showinfo(self._tr("saved"), self._tr("save_to", path=path))
 
     def export_transcript(self) -> None:
         if not self._has_transcript_text():
-            messagebox.showinfo("文字起こしを保存", "文字起こしテキストがありません。")
+            messagebox.showinfo(self._tr("save_transcript_title"), self._tr("no_transcript"))
             return
         path = filedialog.asksaveasfilename(
             defaultextension=".txt",
             filetypes=[("テキスト", "*.txt"), ("Markdown", "*.md"), ("すべてのファイル", "*.*")],
             initialfile="transcript.txt",
-            title="文字起こしを保存",
+            title=self._tr("save_transcript_title"),
             **_initialdir_option("transcripts_dir"),
         )
         if not path:
@@ -1251,9 +1593,9 @@ class App:
         try:
             Path(path).write_text(text, encoding="utf-8")
         except Exception as exc:
-            messagebox.showerror("エラー", f"保存できませんでした:\n{exc}")
+            messagebox.showerror(self._tr("generic_error"), self._tr("save_error", error=exc))
             return
-        messagebox.showinfo("保存しました", f"保存先:\n{path}")
+        messagebox.showinfo(self._tr("saved"), self._tr("save_to", path=path))
 
     # ---------- notes ----------
 
@@ -1265,7 +1607,7 @@ class App:
             defaultextension=".txt",
             filetypes=[("テキスト", "*.txt"), ("Markdown", "*.md"), ("すべてのファイル", "*.*")],
             initialfile="notes.txt",
-            title="メモを保存",
+            title=self._tr("save_notes_title"),
             **_initialdir_option("notes_dir"),
         )
         if not path:
@@ -1274,12 +1616,12 @@ class App:
         try:
             Path(path).write_text(text, encoding="utf-8")
         except Exception as exc:
-            messagebox.showerror("エラー", f"保存できませんでした:\n{exc}")
+            messagebox.showerror(self._tr("generic_error"), self._tr("save_error", error=exc))
 
     def load_notes(self) -> None:
         path = filedialog.askopenfilename(
             filetypes=[("テキスト", "*.txt"), ("Markdown", "*.md"), ("すべてのファイル", "*.*")],
-            title="メモを読み込み",
+            title=self._tr("load_notes_title"),
             **_initialdir_option("notes_dir"),
         )
         if not path:
@@ -1287,7 +1629,7 @@ class App:
         try:
             text = Path(path).read_text(encoding="utf-8")
         except Exception as exc:
-            messagebox.showerror("エラー", f"読み込めませんでした:\n{exc}")
+            messagebox.showerror(self._tr("generic_error"), self._tr("load_error", error=exc))
             return
         self.notes_text.delete("1.0", "end")
         self.notes_text.insert("1.0", text)
@@ -1299,7 +1641,7 @@ class App:
         if self.is_recording or self._busy:
             return
         path = filedialog.askopenfilename(
-            title="音声ファイルを開く",
+            title=self._tr("open_audio_title"),
             filetypes=AUDIO_FILETYPES,
             **_initialdir_option("audio_dir"),
         )
@@ -1322,15 +1664,15 @@ class App:
         notes = self._notes_cache
         preprocessor = self._build_preprocessor() if self._nr_var.get() else None
         self._busy = True
-        self.hq_button.config(state="disabled", text="文字起こし中...")
+        self.hq_button.config(state="disabled", text=self._tr("transcribing"))
         self.open_button.config(state="disabled")
         self._set_transcript_actions(False)
         what = f" · {label}" if label else ""
         if hq_model_cached():
-            self._set_status(f"高精度で文字起こし中（{HQ_MODEL_LABEL}）{what}...", "busy")
+            self._set_status(self._tr("hq_running", model=HQ_MODEL_LABEL, what=what), "busy")
         else:
-            self._set_status("初回モデルをダウンロード中（数分かかります）...", "busy")
-        self.meter_caption.config(text="文字起こし進捗")
+            self._set_status(self._tr("hq_download"), "download")
+        self.meter_caption.config(text=self._tr("transcribe_progress"))
         self.wave.set_mode("analysis")
         self.wave.set_progress(0)
 
@@ -1368,7 +1710,7 @@ class App:
 
     def _apply_hq_result(self, kind: str, payload: str) -> None:
         self._busy = False
-        self.hq_button.config(text=LABEL_HQ)
+        self.hq_button.config(text=self._tr("hq"))
         self.meter_caption.config(text="")
         self.wave.set_mode("idle")
         self.wave.set_progress(0)
@@ -1379,12 +1721,12 @@ class App:
         if kind == "ok":
             if payload.strip():
                 self._replace_transcript(payload)
-                self._set_status(f"高精度文字起こし完了（{HQ_MODEL_LABEL}）", "ok")
+                self._set_status(self._tr("hq_done", model=HQ_MODEL_LABEL), "ok")
             else:
-                self._set_status("文字起こし結果が空でした", "busy")
+                self._set_status(self._tr("hq_empty"), "busy")
         elif kind == "error":
-            self._set_status("文字起こしに失敗しました", "recording")
-            messagebox.showerror("文字起こしに失敗しました", payload)
+            self._set_status(self._tr("hq_failed"), "recording")
+            messagebox.showerror(self._tr("hq_failed"), payload)
         self._sync_transcript_actions()
 
     # ---------- refine ----------
@@ -1393,18 +1735,18 @@ class App:
         transcript = self.transcript.get("1.0", "end").strip()
         notes = self._notes_cache
         if not transcript:
-            messagebox.showinfo("② メモで校正", "文字起こしテキストがありません。")
+            messagebox.showinfo(self._tr("refine"), self._tr("no_transcript"))
             return
         if not notes:
-            messagebox.showinfo("② メモで校正", "メモが空です。固有名詞や用語をメモ欄に入力してから実行してください。")
+            messagebox.showinfo(self._tr("refine"), self._tr("empty_notes"))
             return
         model = self._selected_llm_model()
         self._busy = True
-        self.refine_button.config(state="disabled", text="校正中...")
+        self.refine_button.config(state="disabled", text=self._tr("refining"))
         self.hq_button.config(state="disabled")
         self.minutes_button.config(state="disabled")
-        self._set_status(f"Ollama で校正中（{model}）...", "busy")
-        self.meter_caption.config(text="解析中")
+        self._set_status(self._tr("refine_running", model=model), "busy")
+        self.meter_caption.config(text=self._tr("analysis"))
         self.wave.set_mode("analysis")
         self.wave.set_progress(0)
 
@@ -1421,15 +1763,15 @@ class App:
 
     def _apply_refine_result(self, kind: str, payload: str) -> None:
         self._busy = False
-        self.refine_button.config(text=LABEL_REFINE)
+        self.refine_button.config(text=self._tr("refine"))
         self.meter_caption.config(text="")
         self.wave.set_mode("idle")
         if kind == "ok":
             self._replace_transcript(payload)
-            self._set_status("校正完了", "ok")
+            self._set_status(self._tr("refine_done"), "ok")
         elif kind == "error":
-            self._set_status("校正に失敗しました", "recording")
-            messagebox.showerror("校正に失敗しました", payload)
+            self._set_status(self._tr("refine_failed"), "recording")
+            messagebox.showerror(self._tr("refine_failed"), payload)
         if self.recorder.has_recording:
             self.hq_button.config(state="normal")
         self._sync_transcript_actions()
@@ -1439,15 +1781,15 @@ class App:
     def generate_minutes(self) -> None:
         transcript = self.transcript.get("1.0", "end").strip()
         if not transcript:
-            messagebox.showinfo("③ 議事録を作成", "文字起こしテキストがありません。")
+            messagebox.showinfo(self._tr("minutes"), self._tr("no_transcript"))
             return
         model = self._selected_llm_model()
         self._busy = True
-        self.minutes_button.config(state="disabled", text="生成中...")
+        self.minutes_button.config(state="disabled", text=self._tr("minutes_generating"))
         self.refine_button.config(state="disabled")
         self.hq_button.config(state="disabled")
-        self._set_status(f"Ollama で議事録を生成中（{model}）...", "busy")
-        self.meter_caption.config(text="解析中")
+        self._set_status(self._tr("minutes_running", model=model), "busy")
+        self.meter_caption.config(text=self._tr("analysis"))
         self.wave.set_mode("analysis")
         self.wave.set_progress(0)
 
@@ -1464,22 +1806,22 @@ class App:
 
     def _apply_minutes_result(self, kind: str, payload: str) -> None:
         self._busy = False
-        self.minutes_button.config(text=LABEL_MINUTES)
+        self.minutes_button.config(text=self._tr("minutes"))
         self.meter_caption.config(text="")
         self.wave.set_mode("idle")
         if self.recorder.has_recording:
             self.hq_button.config(state="normal")
         self._sync_transcript_actions()
         if kind == "ok":
-            self._set_status("議事録ができました", "ok")
+            self._set_status(self._tr("minutes_done"), "ok")
             self._show_minutes(payload)
         elif kind == "error":
-            self._set_status("議事録の生成に失敗しました", "recording")
-            messagebox.showerror("議事録の生成に失敗しました", payload)
+            self._set_status(self._tr("minutes_failed"), "recording")
+            messagebox.showerror(self._tr("minutes_failed"), payload)
 
     def _show_minutes(self, markdown: str) -> None:
         win = tk.Toplevel(self.root)
-        win.title(f"{APP_NAME} — 議事録")
+        win.title(f"{APP_NAME} — {self._tr('minutes_window')}")
         win.geometry("680x600")
         win.configure(background=BG)
         frame = ttk.Frame(win, style="Card.TFrame")
@@ -1513,15 +1855,15 @@ class App:
                 defaultextension=".md",
                 filetypes=[("Markdown", "*.md"), ("テキスト", "*.txt"), ("すべてのファイル", "*.*")],
                 initialfile="minutes.md",
-                title="議事録を保存",
+                title=self._tr("save_minutes_title"),
                 parent=win,
                 **_initialdir_option("minutes_dir"),
             )
             if path:
                 Path(path).write_text(text.get("1.0", "end").rstrip() + "\n", encoding="utf-8")
 
-        ttk.Button(btn_row, text="閉じる", command=win.destroy).pack(side="right")
-        ttk.Button(btn_row, text=".md として保存", style="Accent.TButton", command=save).pack(side="right", padx=(0, 6))
+        ttk.Button(btn_row, text=self._tr("close"), command=win.destroy).pack(side="right")
+        ttk.Button(btn_row, text=self._tr("save_as_md"), style="Accent.TButton", command=save).pack(side="right", padx=(0, 6))
 
     # ---------- session save / restore ----------
 
@@ -1529,13 +1871,13 @@ class App:
         transcript = self.transcript.get("1.0", "end").rstrip()
         notes = self.notes_text.get("1.0", "end").rstrip()
         if not self._player.has_audio and not transcript and not notes:
-            messagebox.showinfo("セッションを保存", "保存する内容がありません。")
+            messagebox.showinfo(self._tr("save_session_title"), self._tr("nothing_to_save"))
             return
         path = filedialog.asksaveasfilename(
             defaultextension=".zip",
             filetypes=[("セッション", "*.zip"), ("すべてのファイル", "*.*")],
             initialfile="session.zip",
-            title="セッションを保存",
+            title=self._tr("save_session_title"),
             **_initialdir_option("sessions_dir"),
         )
         if not path:
@@ -1558,15 +1900,15 @@ class App:
                     bundle.write(tmp, "audio.wav")
                     tmp.unlink(missing_ok=True)
         except Exception as exc:
-            messagebox.showerror("セッションの保存に失敗しました", f"{type(exc).__name__}: {exc}")
+            messagebox.showerror(self._tr("session_save_failed"), f"{type(exc).__name__}: {exc}")
             return
-        messagebox.showinfo("保存しました", f"セッションの保存先:\n{path}")
+        messagebox.showinfo(self._tr("saved"), self._tr("session_save_to", path=path))
 
     def open_session(self) -> None:
         if self.is_recording or self._busy:
             return
         path = filedialog.askopenfilename(
-            title="セッションを開く",
+            title=self._tr("open_session_title"),
             filetypes=[("セッション", "*.zip"), ("すべてのファイル", "*.*")],
             **_initialdir_option("sessions_dir"),
         )
@@ -1579,7 +1921,7 @@ class App:
                 notes = bundle.read("notes.txt").decode("utf-8") if "notes.txt" in names else ""
                 audio_bytes = bundle.read("audio.wav") if "audio.wav" in names else None
         except Exception as exc:
-            messagebox.showerror("セッションを開けませんでした", f"{type(exc).__name__}: {exc}")
+            messagebox.showerror(self._tr("session_open_failed"), f"{type(exc).__name__}: {exc}")
             return
 
         self.notes_text.delete("1.0", "end")
@@ -1595,7 +1937,7 @@ class App:
             self._load_playback_bytes(audio_bytes)
         self._set_playback_enabled(self._player.has_audio)
         self._sync_transcript_actions()
-        self._set_status(f"セッションを読み込みました · {Path(path).name}", "ready")
+        self._set_status(self._tr("session_loaded", name=Path(path).name), "ready")
 
     def _load_playback_bytes(self, wav_bytes: bytes) -> None:
         tmp = settings_store.temp_path(f"session-load-{os.getpid()}.wav")
@@ -1654,7 +1996,7 @@ class App:
         if fraction is not None and self._busy:
             pct = int(max(0.0, min(fraction, 1.0)) * 100)
             self.wave.set_progress(pct / 100)
-            self.meter_caption.config(text=f"文字起こし進捗 · {pct}%")
+            self.meter_caption.config(text=self._tr("transcribe_progress_pct", pct=pct))
 
     def _update_meter(self) -> None:
         if not self.is_recording:
@@ -1669,8 +2011,8 @@ class App:
             return
         playing = self._player.is_playing
         self.position_label.config(text=f"{_fmt_time(self._player.position)} / {_fmt_time(self._player.duration)}")
-        if not playing and self.play_button["text"] == LABEL_PAUSE:
-            self.play_button.config(text=LABEL_PLAY)
+        if not playing and self.play_button["text"] in {LABEL_PAUSE, text_for("en", "pause")}:
+            self.play_button.config(text=self._tr("play"))
 
     # ---------- transcript helpers ----------
 
@@ -1714,13 +2056,26 @@ class App:
     # ---------- status / timer ----------
 
     def _set_status(self, text: str, kind: str = "ready") -> None:
+        self._status_kind = kind
         palette = {
-            "ready": (BG, TEXT),
-            "recording": ("#fce4e2", DANGER_DARK),
-            "busy": ("#fff3d6", "#9a6b00"),
-            "ok": ("#dff3e8", OK_GREEN),
+            "ready": (SURFACE_2, BORDER, TEXT_MUTED, "OK", TEXT_MUTED),
+            "recording": ("#fce4e2", DANGER, DANGER_DARK, "REC", "#ffffff"),
+            "busy": (ACCENT_SOFT, ACCENT, ACCENT_DARK, "RUN", "#ffffff"),
+            "download": (ACCENT_SOFT, ACCENT, ACCENT_DARK, "DL", "#ffffff"),
+            "ok": ("#dff3e8", OK_GREEN, OK_GREEN, "OK", "#ffffff"),
         }
-        bg, fg = palette.get(kind, (BG, TEXT))
+        bg, border, fg, icon, icon_fg = palette.get(kind, palette["ready"])
+        if self._dark_var.get():
+            palette = {
+                "ready": (SURFACE_2, BORDER, TEXT_MUTED, "OK", TEXT_MUTED),
+                "recording": ("#351923", DANGER, "#ffd7df", "REC", BG),
+                "busy": (ACCENT_SOFT, ACCENT, TEXT, "RUN", BG),
+                "download": (ACCENT_SOFT, ACCENT, TEXT, "DL", BG),
+                "ok": ("#123828", OK_GREEN, "#d9ffee", "OK", BG),
+            }
+            bg, border, fg, icon, icon_fg = palette.get(kind, palette["ready"])
+        self.status_banner.config(background=bg, highlightbackground=border, highlightcolor=border)
+        self.status_icon.config(text=icon, background=border, foreground=icon_fg)
         self.status.config(text=text, background=bg, foreground=fg)
 
     def _schedule_tick(self) -> None:
@@ -1749,11 +2104,13 @@ class App:
         settings_store.save_settings(
             {
                 "device_index": self._device_index,
+                "mic_capture": bool(self._mic_capture_var.get()),
                 "noise_reduce": bool(self._nr_var.get()),
                 "live": bool(self._live_var.get()),
                 "llm_model": self._selected_llm_model(),
                 "theme": self._theme_key(),
                 "dark_mode": bool(self._dark_var.get()),
+                "language": self._language_code(),
                 "geometry": self.root.winfo_geometry(),
             }
         )
