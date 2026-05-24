@@ -39,6 +39,9 @@ Click the correction button after transcription and notes are ready. Ollama
 rewrites likely misrecognitions so they match your notes while preserving the
 meaning, order, and timestamps.
 
+Choose the LLM model from the **LLM** selector before running correction or
+minutes generation. Edit `default.toml` to add or remove model choices.
+
 ## Generate Minutes
 
 Click the minutes button to create Markdown minutes from the transcript. The

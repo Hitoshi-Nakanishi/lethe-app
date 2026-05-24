@@ -51,8 +51,9 @@ generation require it.
 ## Configuration
 
 Edit `default.toml` to choose where Lethe stores settings, temporary WAV files,
-and the initial folders used by save/open dialogs. Set `LETHE_CONFIG` to point
-to another TOML file when you want a machine-local config outside the repo.
+the initial folders used by save/open dialogs, and the LLM model choices shown
+in the app. Set `LETHE_CONFIG` to point to another TOML file when you want a
+machine-local config outside the repo.
 
 ## macOS Tk Note
 

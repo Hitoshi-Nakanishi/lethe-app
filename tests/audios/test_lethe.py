@@ -45,6 +45,9 @@ def test_connection_error_detection():
 def test_describe_error_ollama_gives_guidance():
     msg = describe_error(ConnectionRefusedError("refused"), ollama=True)
     assert "ollama serve" in msg
+    custom = describe_error(ConnectionRefusedError("refused"), ollama=True, model="qwen2.5:7b", ollama_url="http://example")
+    assert "qwen2.5:7b" in custom
+    assert "http://example" in custom
     plain = describe_error(ValueError("boom"), ollama=True)
     assert plain == "ValueError: boom"
 

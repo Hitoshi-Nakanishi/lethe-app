@@ -23,11 +23,21 @@ def test_load_returns_independent_copy(tmp_path, monkeypatch):
 
 def test_save_then_load_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(st, "SETTINGS_PATH", tmp_path / "nested" / "settings.json")
-    st.save_settings({"device_index": 3, "noise_reduce": True, "live": True, "geometry": "800x600", "junk": "ignored"})
+    st.save_settings(
+        {
+            "device_index": 3,
+            "noise_reduce": True,
+            "live": True,
+            "llm_model": "qwen2.5:7b",
+            "geometry": "800x600",
+            "junk": "ignored",
+        }
+    )
     loaded = st.load_settings()
     assert loaded["device_index"] == 3
     assert loaded["noise_reduce"] is True
     assert loaded["live"] is True
+    assert loaded["llm_model"] == "qwen2.5:7b"
     assert loaded["geometry"] == "800x600"
     assert "junk" not in loaded  # unknown keys are dropped
 
@@ -40,6 +50,10 @@ def test_load_config_merges_default_toml_paths(tmp_path):
 settings_dir = "~/custom-lethe"
 transcripts_dir = "exports/transcripts"
 unknown = "ignored"
+
+[models]
+default_llm_model = "qwen2.5:7b"
+llm_models = ["qwen2.5:7b", "mistral:7b"]
 """,
         encoding="utf-8",
     )
@@ -50,6 +64,23 @@ unknown = "ignored"
     assert loaded["paths"]["transcripts_dir"] == "exports/transcripts"
     assert "unknown" not in loaded["paths"]
     assert "sessions_dir" in loaded["paths"]
+    assert loaded["models"]["default_llm_model"] == "qwen2.5:7b"
+    assert loaded["models"]["llm_models"] == ["qwen2.5:7b", "mistral:7b"]
+
+
+def test_llm_models_includes_default_when_missing(tmp_path, monkeypatch):
+    config = tmp_path / "default.toml"
+    config.write_text(
+        """
+[models]
+default_llm_model = "custom:latest"
+llm_models = ["llama3.1:8b"]
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(st, "CONFIG_PATH", config)
+
+    assert st.llm_models() == ["custom:latest", "llama3.1:8b"]
 
 
 def test_settings_path_uses_default_toml_settings_dir(tmp_path, monkeypatch):
