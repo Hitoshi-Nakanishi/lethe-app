@@ -1,0 +1,61 @@
+version: '3'
+
+includes:
+  qa:
+    taskfile: ./taskfiles/qa.yml
+    aliases: [py]
+  app:
+    taskfile: ./taskfiles/app.yml
+
+tasks:
+  default:
+    desc: Run formatting, linting, type checks, and tests
+    summary: |
+      Root entrypoint for the standard repository checks.
+      The implementation lives under qa:default so the root Taskfile stays small.
+    cmds:
+      - task: qa:default
+
+  format:
+    desc: Format Python files with Ruff
+    cmds:
+      - task: qa:format
+
+  check:
+    desc: Run Ruff lint checks
+    cmds:
+      - task: qa:check
+
+  fix:
+    desc: Run Ruff lint fixes
+    cmds:
+      - task: qa:fix
+
+  typecheck:
+    desc: Run ty type checks
+    cmds:
+      - task: qa:typecheck
+
+  test:
+    desc: Run the Python test suite
+    cmds:
+      - task: qa:test
+
+  run:
+    desc: Run the Lethe desktop app
+    cmds:
+      - task: app:run
+
+  sync:
+    desc: Sync the uv project environment
+    cmds:
+      - uv sync --dev
+
+  list:
+    desc: Show public task commands
+    summary: |
+      Public tasks are grouped by namespace:
+      - qa:
+      - app:
+    cmds:
+      - task --list

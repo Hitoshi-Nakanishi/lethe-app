@@ -35,6 +35,12 @@ uv sync --dev
 uv run lethe
 ```
 
+Task を使う場合:
+
+```sh
+task run
+```
+
 ## ドキュメント
 
 - [セットアップガイド](docs/setup.ja.md)
@@ -67,6 +73,16 @@ uv を使う場合:
 
 ```sh
 uv run pytest -q
+```
+
+Task を使う場合:
+
+```sh
+task default
+task format
+task check
+task typecheck
+task test
 ```
 
 ## プロジェクト構成

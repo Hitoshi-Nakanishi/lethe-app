@@ -89,7 +89,7 @@ llm_models = ["llama3.1:8b"]
 
 def test_settings_path_uses_default_toml_settings_dir(tmp_path, monkeypatch):
     config = tmp_path / "default.toml"
-    config.write_text("[paths]\nsettings_dir = \"configured\"\n", encoding="utf-8")
+    config.write_text('[paths]\nsettings_dir = "configured"\n', encoding="utf-8")
     monkeypatch.setattr(st, "CONFIG_PATH", config)
     monkeypatch.chdir(tmp_path)
 

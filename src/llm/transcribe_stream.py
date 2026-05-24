@@ -20,6 +20,7 @@ import queue
 import threading
 from collections.abc import Callable
 from math import gcd
+from typing import Any
 
 import numpy as np
 
@@ -87,7 +88,7 @@ class StreamingTranscriber:
         self._preprocessor = preprocessor
         self._queue: queue.Queue[np.ndarray | None] = queue.Queue()
         self._thread: threading.Thread | None = None
-        self._model = None
+        self._model: Any | None = None
 
     def start(self) -> None:
         if self._thread is not None:
@@ -166,7 +167,10 @@ class StreamingTranscriber:
             prompt = self._current_prompt()
             if prompt:
                 kwargs["initial_prompt"] = prompt
-            segments, _ = self._model.transcribe(resampled, **kwargs)
+            model = self._model
+            if model is None:
+                raise RuntimeError("Whisper model is not loaded")
+            segments, _ = model.transcribe(resampled, **kwargs)
             text = " ".join(s.text.strip() for s in segments).strip()
             if text:
                 self._on_text(text)

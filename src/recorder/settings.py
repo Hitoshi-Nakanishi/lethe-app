@@ -38,7 +38,7 @@ DEFAULT_CONFIG: dict = {
         "ollama_url": "http://localhost:11434",
         "default_llm_model": "llama3.1:8b",
         "llm_models": ["llama3.1:8b", "qwen2.5:7b", "mistral:7b"],
-    }
+    },
 }
 
 DEFAULTS: dict = {
