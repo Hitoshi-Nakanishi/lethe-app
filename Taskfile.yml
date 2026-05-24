@@ -46,6 +46,11 @@ tasks:
     cmds:
       - task: app:run
 
+  setup:
+    desc: Sync the uv project environment
+    cmds:
+      - task: sync
+
   sync:
     desc: Sync the uv project environment
     cmds:
