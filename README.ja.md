@@ -31,16 +31,16 @@ task run
 `uv sync --dev` で Python 環境を同期します。
 `task run` は Lethe のデスクトップアプリを起動します。
 
-初回起動前に設定済みの Whisper モデルを事前ダウンロードできます。
+List configured models and pre-download all required models before first use.
 
 ```sh
-task models
+task model-list
+task download-models
 ```
 
-You can also list and pre-download Ollama LLM models.
+To download one extra Ollama model by name:
 
 ```sh
-task llm-model-list
 task download-llm-model -- llama3.1:8b
 ```
 

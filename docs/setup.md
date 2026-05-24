@@ -22,17 +22,11 @@ task run
 
 `task setup` bootstraps uv when it is not available on PATH.
 
-Pre-download the configured Whisper live/final models:
+List configured models and pre-download all required models:
 
 ```sh
-task models
-```
-
-List and pre-download configured Ollama LLM models:
-
-```sh
-task llm-model-list
-task download-llm-model -- llama3.1:8b
+task model-list
+task download-models
 ```
 
 Using uv:
@@ -62,7 +56,8 @@ lethe
 
 ## Optional Ollama Setup
 
-Install Ollama, start the service, and pull a model:
+Install Ollama, start the service, and pull a model that is not already covered
+by `task download-models`:
 
 ```sh
 ollama serve

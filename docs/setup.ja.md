@@ -22,17 +22,11 @@ task run
 
 `task setup` は uv が PATH に無い場合も自動で用意します。
 
-設定済みの Whisper live/final モデルを事前ダウンロードできます。
+List configured models and pre-download all required models before first use.
 
 ```sh
-task models
-```
-
-You can also list and pre-download Ollama LLM models.
-
-```sh
-task llm-model-list
-task download-llm-model -- llama3.1:8b
+task model-list
+task download-models
 ```
 
 uv を使う場合:
