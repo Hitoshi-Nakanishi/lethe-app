@@ -6,15 +6,20 @@ tasks:
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync lethe {{.CLI_ARGS}}
 
-  models:
+  model-list:
+    desc: List configured Whisper and Ollama models
+    cmds:
+      - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/model_tasks.py list
+
+  download-models:
+    desc: Download all configured Whisper and Ollama models
+    cmds:
+      - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/model_tasks.py download
+
+  download-whisper-models:
     desc: Download configured Whisper speech models
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/download_models.py {{.CLI_ARGS}}
-
-  llm-model-list:
-    desc: List configured Ollama LLM models
-    cmds:
-      - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/ollama_models.py list
 
   download-llm-model:
     desc: Download an Ollama LLM model

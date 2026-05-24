@@ -34,3 +34,16 @@ def test_download_llm_model_reports_missing_ollama(monkeypatch, capsys):
 
     assert ollama_models.download_llm_model("qwen2.5:7b") == 127
     assert "ollama" in capsys.readouterr().err
+
+
+def test_download_configured_llm_models_stops_on_failure(monkeypatch):
+    seen: list[str] = []
+
+    def fake_download(model: str) -> int:
+        seen.append(model)
+        return 7 if model == "broken:latest" else 0
+
+    monkeypatch.setattr(ollama_models, "download_llm_model", fake_download)
+
+    assert ollama_models.download_configured_llm_models(["ok:latest", "broken:latest", "skipped:latest"]) == 7
+    assert seen == ["ok:latest", "broken:latest"]

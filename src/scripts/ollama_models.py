@@ -39,10 +39,26 @@ def download_llm_model(model: str) -> int:
     return result.returncode
 
 
+def download_configured_llm_models(models: list[str] | None = None) -> int:
+    """Download every configured Ollama model; stop at the first failure."""
+    selected = models if models is not None else configured_llm_models()
+    if not selected:
+        print("No LLM models configured.")
+        return 0
+    for model in selected:
+        print(f"Downloading/checking Ollama LLM model: {model}")
+        rc = download_llm_model(model)
+        if rc != 0:
+            return rc
+    print("Ollama LLM model download complete.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="List or download Ollama LLM models configured for Lethe.")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("list", help="List LLM model names configured in default.toml.")
+    subparsers.add_parser("pull-configured", help="Download every configured Ollama LLM model.")
     pull = subparsers.add_parser("pull", help="Download one LLM model with `ollama pull`.")
     pull.add_argument("model", help="Ollama model name, for example llama3.1:8b.")
 
@@ -50,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "list":
         print_configured_models()
         return 0
+    if args.command == "pull-configured":
+        return download_configured_llm_models()
     if args.command == "pull":
         return download_llm_model(args.model)
     return 1

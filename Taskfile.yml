@@ -46,15 +46,20 @@ tasks:
     cmds:
       - task: app:run
 
-  models:
+  model-list:
+    desc: List configured Whisper and Ollama models
+    cmds:
+      - task: app:model-list
+
+  download-models:
+    desc: Download all configured Whisper and Ollama models
+    cmds:
+      - task: app:download-models
+
+  download-whisper-models:
     desc: Download configured Whisper speech models
     cmds:
-      - task: app:models
-
-  llm-model-list:
-    desc: List configured Ollama LLM models
-    cmds:
-      - task: app:llm-model-list
+      - task: app:download-whisper-models
 
   download-llm-model:
     desc: Download an Ollama LLM model
