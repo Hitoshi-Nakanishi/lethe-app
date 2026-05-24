@@ -29,6 +29,8 @@ def test_save_then_load_roundtrip(tmp_path, monkeypatch):
             "noise_reduce": True,
             "live": True,
             "llm_model": "qwen2.5:7b",
+            "theme": "ember",
+            "dark_mode": False,
             "geometry": "800x600",
             "junk": "ignored",
         }
@@ -38,6 +40,8 @@ def test_save_then_load_roundtrip(tmp_path, monkeypatch):
     assert loaded["noise_reduce"] is True
     assert loaded["live"] is True
     assert loaded["llm_model"] == "qwen2.5:7b"
+    assert loaded["theme"] == "ember"
+    assert loaded["dark_mode"] is False
     assert loaded["geometry"] == "800x600"
     assert "junk" not in loaded  # unknown keys are dropped
 

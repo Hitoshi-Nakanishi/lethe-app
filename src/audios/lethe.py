@@ -61,20 +61,140 @@ OLLAMA_MODEL = _MODEL_CONFIG["default_llm_model"]
 OLLAMA_URL = _MODEL_CONFIG["ollama_url"]
 PLAYBACK_SR = 16000  # opened files / sessions are decoded to 16 kHz mono for playback
 
-# --- palette (a cohesive flat theme on top of ttk's "clam") ---
-BG = "#eef0f3"
-SURFACE = "#ffffff"
-BORDER = "#d4d8df"
-TEXT = "#1f2430"
-TEXT_MUTED = "#727a86"
-ACCENT = "#3b6ef0"
-ACCENT_DARK = "#2f59c9"
-ACCENT_SOFT = "#e7edff"
-DANGER = "#e0463e"
-DANGER_DARK = "#bf3a33"
-OK_GREEN = "#1f9d6b"
-DISABLED_BG = "#e8eaee"
-DISABLED_FG = "#a7adb8"
+# --- themes (ttk "clam" with app-owned palettes) ---
+THEMES = {
+    "midnight": {
+        "label": "Midnight",
+        "light": {
+            "bg": "#eef2f7",
+            "surface": "#ffffff",
+            "surface_2": "#f6f8fb",
+            "border": "#cfd7e5",
+            "text": "#172033",
+            "muted": "#647084",
+            "accent": "#2563eb",
+            "accent_dark": "#1d4ed8",
+            "accent_soft": "#dbeafe",
+            "danger": "#e0463e",
+            "danger_dark": "#bf3a33",
+            "ok": "#0f9f6e",
+            "disabled_bg": "#e5eaf2",
+            "disabled_fg": "#9aa6b8",
+        },
+        "dark": {
+            "bg": "#070b12",
+            "surface": "#101724",
+            "surface_2": "#151f31",
+            "border": "#243349",
+            "text": "#edf4ff",
+            "muted": "#91a0b8",
+            "accent": "#5eead4",
+            "accent_dark": "#14b8a6",
+            "accent_soft": "#123b43",
+            "danger": "#fb7185",
+            "danger_dark": "#f43f5e",
+            "ok": "#34d399",
+            "disabled_bg": "#1b2535",
+            "disabled_fg": "#66758c",
+        },
+    },
+    "aurora": {
+        "label": "Aurora",
+        "light": {
+            "bg": "#f0f7f4",
+            "surface": "#ffffff",
+            "surface_2": "#f5fbf8",
+            "border": "#c7ded4",
+            "text": "#14231d",
+            "muted": "#60756c",
+            "accent": "#0f9f6e",
+            "accent_dark": "#087f5b",
+            "accent_soft": "#dff7ec",
+            "danger": "#e05252",
+            "danger_dark": "#bf3f3f",
+            "ok": "#16835e",
+            "disabled_bg": "#e4eee9",
+            "disabled_fg": "#91a19a",
+        },
+        "dark": {
+            "bg": "#07110e",
+            "surface": "#10201a",
+            "surface_2": "#152a22",
+            "border": "#244137",
+            "text": "#ecfff7",
+            "muted": "#9ab8ac",
+            "accent": "#7dd3fc",
+            "accent_dark": "#38bdf8",
+            "accent_soft": "#123447",
+            "danger": "#fb7185",
+            "danger_dark": "#f43f5e",
+            "ok": "#86efac",
+            "disabled_bg": "#1d3028",
+            "disabled_fg": "#6f887c",
+        },
+    },
+    "ember": {
+        "label": "Ember",
+        "light": {
+            "bg": "#f7f3ef",
+            "surface": "#fffdfa",
+            "surface_2": "#fbf4ec",
+            "border": "#e0cfc0",
+            "text": "#2b211b",
+            "muted": "#7c6a5b",
+            "accent": "#d9480f",
+            "accent_dark": "#b83b0b",
+            "accent_soft": "#ffe8d6",
+            "danger": "#c92a2a",
+            "danger_dark": "#a61e1e",
+            "ok": "#2b8a3e",
+            "disabled_bg": "#eee5dd",
+            "disabled_fg": "#a19388",
+        },
+        "dark": {
+            "bg": "#120c09",
+            "surface": "#201610",
+            "surface_2": "#2b1d14",
+            "border": "#473325",
+            "text": "#fff4ec",
+            "muted": "#c2aa99",
+            "accent": "#f97316",
+            "accent_dark": "#ea580c",
+            "accent_soft": "#4a2412",
+            "danger": "#fb7185",
+            "danger_dark": "#f43f5e",
+            "ok": "#86efac",
+            "disabled_bg": "#31231a",
+            "disabled_fg": "#877367",
+        },
+    },
+}
+
+THEME_LABELS = {value["label"]: key for key, value in THEMES.items()}
+BG = SURFACE = SURFACE_2 = BORDER = TEXT = TEXT_MUTED = ACCENT = ACCENT_DARK = ACCENT_SOFT = ""
+DANGER = DANGER_DARK = OK_GREEN = DISABLED_BG = DISABLED_FG = ""
+
+
+def _apply_palette(theme: str, dark_mode: bool) -> None:
+    global BG, SURFACE, SURFACE_2, BORDER, TEXT, TEXT_MUTED, ACCENT, ACCENT_DARK, ACCENT_SOFT
+    global DANGER, DANGER_DARK, OK_GREEN, DISABLED_BG, DISABLED_FG
+    theme_key = theme if theme in THEMES else "midnight"
+    mode = "dark" if dark_mode else "light"
+    palette = THEMES[theme_key][mode]
+    BG = palette["bg"]
+    SURFACE = palette["surface"]
+    SURFACE_2 = palette["surface_2"]
+    BORDER = palette["border"]
+    TEXT = palette["text"]
+    TEXT_MUTED = palette["muted"]
+    ACCENT = palette["accent"]
+    ACCENT_DARK = palette["accent_dark"]
+    ACCENT_SOFT = palette["accent_soft"]
+    DANGER = palette["danger"]
+    DANGER_DARK = palette["danger_dark"]
+    OK_GREEN = palette["ok"]
+    DISABLED_BG = palette["disabled_bg"]
+    DISABLED_FG = palette["disabled_fg"]
 
 PAD_X = 16
 PAD_Y = 12
@@ -472,6 +592,9 @@ class App:
             self._llm_models.insert(0, default_llm)
         self._llm_model_var = tk.StringVar(value=default_llm)
         self._ollama_url = settings_store.model_config()["ollama_url"]
+        self._theme_var = tk.StringVar(value=THEMES.get(self._settings.get("theme"), THEMES["midnight"])["label"])
+        self._dark_var = tk.BooleanVar(value=bool(self._settings.get("dark_mode")))
+        _apply_palette(self._theme_key(), self._dark_var.get())
         self._device_index: int | None = self._settings.get("device_index")
         self._devices: list[tuple[str, int | None]] = [("システム既定", None)]
         self._notes_cache = ""
@@ -536,7 +659,7 @@ class App:
         )
         style.map(
             "TButton",
-            background=[("pressed", "#dfe3ea"), ("active", "#eef1f6"), ("disabled", DISABLED_BG)],
+            background=[("pressed", SURFACE_2), ("active", ACCENT_SOFT), ("disabled", DISABLED_BG)],
             foreground=[("disabled", DISABLED_FG)],
             bordercolor=[("disabled", DISABLED_BG)],
         )
@@ -572,24 +695,59 @@ class App:
         )
         style.map(
             "Step.TButton",
-            background=[("pressed", "#d4ddff"), ("active", "#d4ddff"), ("disabled", DISABLED_BG)],
-            foreground=[("disabled", DISABLED_FG)],
+            background=[("pressed", ACCENT), ("active", ACCENT), ("disabled", DISABLED_BG)],
+            foreground=[("pressed", "#ffffff"), ("active", "#ffffff"), ("disabled", DISABLED_FG)],
             bordercolor=[("disabled", DISABLED_BG)],
         )
 
-        style.configure("TCheckbutton", background=SURFACE, foreground=TEXT, focuscolor=SURFACE)
-        style.map("TCheckbutton", background=[("active", SURFACE)], foreground=[("disabled", DISABLED_FG)])
+        style.configure(
+            "TCheckbutton",
+            background=SURFACE_2,
+            foreground=TEXT,
+            focuscolor=SURFACE,
+            indicatorcolor=SURFACE_2,
+        )
+        style.map(
+            "TCheckbutton",
+            background=[("active", SURFACE)],
+            foreground=[("disabled", DISABLED_FG)],
+            indicatorcolor=[("selected", ACCENT), ("active", ACCENT_SOFT)],
+        )
         style.configure("TSeparator", background=BORDER)
-        style.configure("TCombobox", fieldbackground=SURFACE, background=SURFACE, bordercolor=BORDER, arrowcolor=TEXT)
+        style.configure("TCombobox", fieldbackground=SURFACE_2, background=SURFACE, foreground=TEXT, bordercolor=BORDER, arrowcolor=TEXT)
         style.configure(
             "Lethe.Horizontal.TProgressbar",
             background=ACCENT,
-            troughcolor="#e1e4ea",
-            bordercolor="#e1e4ea",
+            troughcolor=DISABLED_BG,
+            bordercolor=BORDER,
             lightcolor=ACCENT,
-            darkcolor=ACCENT,
+            darkcolor=ACCENT_DARK,
         )
         style.configure("TPanedwindow", background=BG)
+
+    def _theme_key(self) -> str:
+        return THEME_LABELS.get(self._theme_var.get(), "midnight")
+
+    def _on_theme_change(self, _event=None) -> None:
+        _apply_palette(self._theme_key(), self._dark_var.get())
+        self.root.configure(background=BG)
+        self._configure_style()
+        self._restyle_text_widgets()
+        self._set_status(self.status["text"], "ready")
+
+    def _restyle_text_widgets(self) -> None:
+        for widget_name in ("transcript", "notes_text"):
+            widget = getattr(self, widget_name, None)
+            if widget is not None:
+                widget.configure(
+                    background=SURFACE_2,
+                    foreground=TEXT,
+                    insertbackground=ACCENT,
+                    highlightbackground=BORDER,
+                    highlightcolor=ACCENT,
+                    selectbackground=ACCENT_SOFT,
+                    selectforeground=TEXT,
+                )
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self.root)
@@ -615,6 +773,17 @@ class App:
         self.timer.pack(side="right")
         self.status = ttk.Label(inner, text="準備完了", style="Status.TLabel")
         self.status.pack(side="right", padx=(0, 16))
+        self.dark_check = ttk.Checkbutton(inner, text="Dark", variable=self._dark_var, command=self._on_theme_change)
+        self.dark_check.pack(side="right", padx=(0, 10))
+        self.theme_combo = ttk.Combobox(
+            inner,
+            state="readonly",
+            width=10,
+            values=list(THEME_LABELS),
+            textvariable=self._theme_var,
+        )
+        self.theme_combo.pack(side="right", padx=(0, 8))
+        self.theme_combo.bind("<<ComboboxSelected>>", self._on_theme_change)
 
     # ---------- left pane (recorder + playback + transcript) ----------
 
@@ -722,7 +891,7 @@ class App:
             highlightthickness=1,
             highlightbackground=BORDER,
             highlightcolor=ACCENT,
-            background=SURFACE,
+            background=SURFACE_2,
             foreground=TEXT,
             insertbackground=ACCENT,
             selectbackground=ACCENT_SOFT,
@@ -770,10 +939,11 @@ class App:
             highlightthickness=1,
             highlightbackground=BORDER,
             highlightcolor=ACCENT,
-            background=SURFACE,
+            background=SURFACE_2,
             foreground=TEXT,
             insertbackground=ACCENT,
             selectbackground=ACCENT_SOFT,
+            selectforeground=TEXT,
             padx=10,
             pady=8,
         )
@@ -1493,6 +1663,8 @@ class App:
                 "noise_reduce": bool(self._nr_var.get()),
                 "live": bool(self._live_var.get()),
                 "llm_model": self._selected_llm_model(),
+                "theme": self._theme_key(),
+                "dark_mode": bool(self._dark_var.get()),
                 "geometry": self.root.winfo_geometry(),
             }
         )

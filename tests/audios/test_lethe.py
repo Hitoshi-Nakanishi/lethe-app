@@ -52,6 +52,15 @@ def test_describe_error_ollama_gives_guidance():
     assert plain == "ValueError: boom"
 
 
+def test_apply_palette_switches_theme_globals():
+    lethe._apply_palette("ember", True)
+    assert lethe.BG == lethe.THEMES["ember"]["dark"]["bg"]
+    assert lethe.ACCENT == lethe.THEMES["ember"]["dark"]["accent"]
+
+    lethe._apply_palette("missing", False)
+    assert lethe.BG == lethe.THEMES["midnight"]["light"]["bg"]
+
+
 def test_player_load_duration_and_position():
     player = Player()
     assert not player.has_audio
