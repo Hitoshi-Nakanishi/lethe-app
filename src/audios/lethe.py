@@ -31,7 +31,6 @@ import json
 import os
 import queue
 import re
-import tempfile
 import threading
 import time
 import tkinter as tk
@@ -158,6 +157,11 @@ def describe_error(exc: Exception, *, ollama: bool = False) -> str:
     return f"{type(exc).__name__}: {exc}"
 
 
+def _initialdir_option(key: str) -> dict[str, str]:
+    path = settings_store.configured_path(key, create=True)
+    return {"initialdir": str(path)} if path is not None else {}
+
+
 def hq_model_cached(model_id: str = HQ_MODEL) -> bool:
     """True if the HQ model already sits in the Hugging Face cache on disk."""
     folder = "models--" + model_id.replace("/", "--")
@@ -249,7 +253,7 @@ class MicRecorder:
     def start(self, device: int | None = None) -> None:
         import sounddevice as sd
 
-        self._wav_path = Path(tempfile.gettempdir()) / f"micrec-{os.getpid()}-{int(time.time() * 1000)}.wav"
+        self._wav_path = settings_store.temp_path(f"micrec-{os.getpid()}-{int(time.time() * 1000)}.wav")
         self._frames_written = 0
         self._level = 0.0
         self._queue = queue.Queue()
@@ -949,6 +953,7 @@ class App:
             filetypes=[("MP3 音声", "*.mp3"), ("すべてのファイル", "*.*")],
             initialfile="recording.mp3",
             title="録音を保存",
+            **_initialdir_option("audio_dir"),
         )
         if not path:
             return
@@ -969,6 +974,7 @@ class App:
             filetypes=[("テキスト", "*.txt"), ("Markdown", "*.md"), ("すべてのファイル", "*.*")],
             initialfile="transcript.txt",
             title="文字起こしを保存",
+            **_initialdir_option("transcripts_dir"),
         )
         if not path:
             return
@@ -991,6 +997,7 @@ class App:
             filetypes=[("テキスト", "*.txt"), ("Markdown", "*.md"), ("すべてのファイル", "*.*")],
             initialfile="notes.txt",
             title="メモを保存",
+            **_initialdir_option("notes_dir"),
         )
         if not path:
             return
@@ -1004,6 +1011,7 @@ class App:
         path = filedialog.askopenfilename(
             filetypes=[("テキスト", "*.txt"), ("Markdown", "*.md"), ("すべてのファイル", "*.*")],
             title="メモを読み込み",
+            **_initialdir_option("notes_dir"),
         )
         if not path:
             return
@@ -1021,7 +1029,11 @@ class App:
     def open_audio(self) -> None:
         if self.is_recording or self._busy:
             return
-        path = filedialog.askopenfilename(title="音声ファイルを開く", filetypes=AUDIO_FILETYPES)
+        path = filedialog.askopenfilename(
+            title="音声ファイルを開く",
+            filetypes=AUDIO_FILETYPES,
+            **_initialdir_option("audio_dir"),
+        )
         if not path:
             return
         self._clear_transcript()
@@ -1217,6 +1229,7 @@ class App:
                 initialfile="minutes.md",
                 title="議事録を保存",
                 parent=win,
+                **_initialdir_option("minutes_dir"),
             )
             if path:
                 Path(path).write_text(text.get("1.0", "end").rstrip() + "\n", encoding="utf-8")
@@ -1237,6 +1250,7 @@ class App:
             filetypes=[("セッション", "*.zip"), ("すべてのファイル", "*.*")],
             initialfile="session.zip",
             title="セッションを保存",
+            **_initialdir_option("sessions_dir"),
         )
         if not path:
             return
@@ -1253,7 +1267,7 @@ class App:
                 }
                 bundle.writestr("meta.json", json.dumps(meta, ensure_ascii=False, indent=2))
                 if self._player.has_audio:
-                    tmp = Path(tempfile.gettempdir()) / f"session-audio-{os.getpid()}.wav"
+                    tmp = settings_store.temp_path(f"session-audio-{os.getpid()}.wav")
                     self._player.write_wav(tmp)
                     bundle.write(tmp, "audio.wav")
                     tmp.unlink(missing_ok=True)
@@ -1268,6 +1282,7 @@ class App:
         path = filedialog.askopenfilename(
             title="セッションを開く",
             filetypes=[("セッション", "*.zip"), ("すべてのファイル", "*.*")],
+            **_initialdir_option("sessions_dir"),
         )
         if not path:
             return
@@ -1297,7 +1312,7 @@ class App:
         self._set_status(f"セッションを読み込みました · {Path(path).name}", "ready")
 
     def _load_playback_bytes(self, wav_bytes: bytes) -> None:
-        tmp = Path(tempfile.gettempdir()) / f"session-load-{os.getpid()}.wav"
+        tmp = settings_store.temp_path(f"session-load-{os.getpid()}.wav")
         try:
             tmp.write_bytes(wav_bytes)
             with wave.open(str(tmp), "rb") as wav:

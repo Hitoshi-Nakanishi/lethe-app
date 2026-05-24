@@ -47,6 +47,10 @@ ollama pull llama3.1:8b
 
 録音と文字起こしだけなら Ollama は不要です。メモで校正、議事録生成を使う場合に必要です。
 
+## 設定
+
+`default.toml` を編集すると、Lethe の設定保存先、一時 WAV の保存先、保存や読み込みダイアログの初期フォルダを指定できます。リポジトリ外の設定ファイルを使いたい場合は、環境変数 `LETHE_CONFIG` に TOML ファイルのパスを指定します。
+
 ## macOS と Tk
 
 pyenv の Python が Tcl/Tk なしでビルドされている場合、Tkinter の import に失敗します。Homebrew で Tcl/Tk を入れて Tk 対応で Python を再ビルドするか、Tk 同梱の公式 Python を使ってください。
