@@ -66,3 +66,8 @@ task check
 task typecheck
 task test
 ```
+
+## Name
+
+Lethe is named after the river of forgetfulness in Greek mythology. The point
+of recording a meeting is to stop carrying it in your head.
