@@ -219,6 +219,9 @@ AUDIO_FILETYPES = [
     ("すべてのファイル", "*.*"),
 ]
 TIMESTAMP_RE = re.compile(r"^\[(?:(\d+):)?(\d{1,2}):(\d{2})\]")
+FILENAME_UNSAFE_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
+FILENAME_SPACE_RE = re.compile(r"\s+")
+FILENAME_UNDERSCORE_RE = re.compile(r"_+")
 
 TOOLTIP_RECORD = "マイク（選択した入力デバイス）の録音を開始／停止します。Space キーでも操作できます。"
 TOOLTIP_MIC_CAPTURE = (
@@ -485,6 +488,36 @@ def _coerce_font_size(value: object) -> int:
     except (TypeError, ValueError):
         size = DEFAULT_FONT_SIZE
     return max(MIN_FONT_SIZE, min(MAX_FONT_SIZE, size))
+
+
+def _safe_filename_part(value: object, fallback: str = "meeting") -> str:
+    text = str(value or "").strip()
+    text = FILENAME_UNSAFE_RE.sub("_", text)
+    text = FILENAME_SPACE_RE.sub("_", text)
+    text = FILENAME_UNDERSCORE_RE.sub("_", text)
+    text = text.strip("._ ")
+    return text or fallback
+
+
+def _suggested_mp3_filename(now: float | None = None) -> str:
+    config = settings_store.filename_config()
+    timestamp_format = str(config.get("timestamp_format") or "%Y%m%d_%H%M")
+    clock = time.localtime(now) if now is not None else time.localtime()
+    try:
+        timestamp = time.strftime(timestamp_format, clock)
+    except ValueError:
+        timestamp = time.strftime("%Y%m%d_%H%M", clock)
+    values = {
+        "timestamp": _safe_filename_part(timestamp, fallback=time.strftime("%Y%m%d_%H%M", clock)),
+        "meeting_name": _safe_filename_part(config.get("meeting_name"), fallback="meeting"),
+    }
+    template = str(config.get("mp3_template") or "{timestamp}_{meeting_name}.mp3")
+    try:
+        filename = template.format(**values)
+    except (KeyError, IndexError, ValueError):
+        filename = "{timestamp}_{meeting_name}.mp3".format(**values)
+    filename = _safe_filename_part(filename, fallback="recording")
+    return filename if filename.lower().endswith(".mp3") else f"{filename}.mp3"
 
 
 def _initialdir_option(key: str) -> dict[str, str]:
@@ -1621,7 +1654,7 @@ class App:
         path = filedialog.asksaveasfilename(
             defaultextension=".mp3",
             filetypes=[("MP3 音声", "*.mp3"), ("すべてのファイル", "*.*")],
-            initialfile="recording.mp3",
+            initialfile=_suggested_mp3_filename(),
             title=self._tr("save_recording_title"),
             **_initialdir_option("audio_dir"),
         )

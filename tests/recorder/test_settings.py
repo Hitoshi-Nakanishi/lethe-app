@@ -65,6 +65,11 @@ unknown = "ignored"
 default_llm_model = "qwen2.5:7b"
 llm_models = ["qwen2.5:7b", "mistral:7b"]
 
+[filenames]
+mp3_template = "{timestamp}_{meeting_name}.mp3"
+meeting_name = "standup"
+timestamp_format = "%Y%m%d_%H%M"
+
 [defaults]
 live = false
 noise_reduce = true
@@ -83,6 +88,9 @@ font_size = 13
     assert "sessions_dir" in loaded["paths"]
     assert loaded["models"]["default_llm_model"] == "qwen2.5:7b"
     assert loaded["models"]["llm_models"] == ["qwen2.5:7b", "mistral:7b"]
+    assert loaded["filenames"]["mp3_template"] == "{timestamp}_{meeting_name}.mp3"
+    assert loaded["filenames"]["meeting_name"] == "standup"
+    assert loaded["filenames"]["timestamp_format"] == "%Y%m%d_%H%M"
     assert loaded["defaults"]["live"] is False
     assert loaded["defaults"]["noise_reduce"] is True
     assert loaded["defaults"]["llm_model"] == "mistral:7b"

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import wave
 import zipfile
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -24,6 +25,8 @@ from recorder.lethe import (
     _fmt_time,
     _is_connection_error,
     _parse_leading_timestamp,
+    _safe_filename_part,
+    _suggested_mp3_filename,
     describe_error,
     text_for,
 )
@@ -42,6 +45,40 @@ def test_coerce_font_size_clamps_invalid_and_extreme_values():
     assert _coerce_font_size(3) == 9
     assert _coerce_font_size(99) == 18
     assert _coerce_font_size("13") == 13
+
+
+def test_suggested_mp3_filename_uses_configured_template(monkeypatch):
+    monkeypatch.setattr(
+        lethe.settings_store,
+        "filename_config",
+        lambda: {
+            "mp3_template": "{timestamp}_{meeting_name}.mp3",
+            "meeting_name": "Weekly Sync",
+            "timestamp_format": "%Y%m%d_%H%M",
+        },
+    )
+    now = time.mktime((2026, 5, 25, 9, 8, 0, 0, 0, -1))
+
+    assert _suggested_mp3_filename(now) == "20260525_0908_Weekly_Sync.mp3"
+
+
+def test_suggested_mp3_filename_sanitizes_parts_and_adds_extension(monkeypatch):
+    monkeypatch.setattr(
+        lethe.settings_store,
+        "filename_config",
+        lambda: {
+            "mp3_template": "{meeting_name}_{timestamp}",
+            "meeting_name": 'Client/A: "Planning"',
+            "timestamp_format": "%Y/%m/%d %H:%M",
+        },
+    )
+    now = time.mktime((2026, 5, 25, 9, 8, 0, 0, 0, -1))
+
+    assert _suggested_mp3_filename(now) == "Client_A_Planning_2026_05_25_09_08.mp3"
+
+
+def test_safe_filename_part_falls_back_when_empty():
+    assert _safe_filename_part(":/") == "meeting"
 
 
 def test_parse_leading_timestamp():

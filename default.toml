@@ -18,6 +18,12 @@ ollama_url = "http://localhost:11434"
 default_llm_model = "llama3.1:8b"
 llm_models = ["llama3.1:8b", "qwen2.5:7b", "mistral:7b"]
 
+[filenames]
+# MP3 save dialog initial filename. Placeholders: {timestamp}, {meeting_name}.
+mp3_template = "{timestamp}_{meeting_name}.mp3"
+meeting_name = "meeting"
+timestamp_format = "%Y%m%d_%H%M"
+
 [defaults]
 # Initial UI defaults used before a value is saved in settings.json.
 mic_capture = true

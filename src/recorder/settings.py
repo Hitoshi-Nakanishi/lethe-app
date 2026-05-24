@@ -39,6 +39,11 @@ DEFAULT_CONFIG: dict = {
         "default_llm_model": "llama3.1:8b",
         "llm_models": ["llama3.1:8b", "qwen2.5:7b", "mistral:7b"],
     },
+    "filenames": {
+        "mp3_template": "{timestamp}_{meeting_name}.mp3",
+        "meeting_name": "meeting",
+        "timestamp_format": "%Y%m%d_%H%M",
+    },
     "defaults": {
         "mic_capture": True,
         "noise_reduce": False,
@@ -76,6 +81,7 @@ def _merge_config(data: dict) -> dict:
     out = {
         "paths": dict(DEFAULT_CONFIG["paths"]),
         "models": dict(DEFAULT_CONFIG["models"]),
+        "filenames": dict(DEFAULT_CONFIG["filenames"]),
         "defaults": dict(DEFAULT_CONFIG["defaults"]),
     }
     paths = data.get("paths") if isinstance(data, dict) else None
@@ -90,6 +96,9 @@ def _merge_config(data: dict) -> dict:
                 out["models"][key] = [str(item) for item in value if str(item).strip()]
             elif key != "llm_models":
                 out["models"][key] = str(value)
+    filenames = data.get("filenames") if isinstance(data, dict) else None
+    if isinstance(filenames, dict):
+        out["filenames"].update({k: str(v) for k, v in filenames.items() if k in out["filenames"] and v is not None})
     _merge_defaults(out, data.get("defaults") if isinstance(data, dict) else None)
     return out
 
@@ -163,6 +172,10 @@ def temp_path(name: str) -> Path:
 
 def model_config() -> dict:
     return load_config()["models"]
+
+
+def filename_config() -> dict:
+    return load_config()["filenames"]
 
 
 def llm_models() -> list[str]:
