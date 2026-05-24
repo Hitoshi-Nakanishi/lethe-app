@@ -22,6 +22,12 @@ task run
 
 `task setup` bootstraps uv when it is not available on PATH.
 
+Pre-download the configured Whisper live/final models:
+
+```sh
+task models
+```
+
 Using uv:
 
 ```sh

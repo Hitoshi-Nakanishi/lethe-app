@@ -6,6 +6,11 @@ tasks:
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync lethe {{.CLI_ARGS}}
 
+  models:
+    desc: Download configured Whisper models
+    cmds:
+      - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/download_models.py {{.CLI_ARGS}}
+
   recorder:
     desc: Run the recorder helper CLI
     cmds:

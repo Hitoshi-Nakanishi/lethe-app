@@ -31,6 +31,12 @@ task run
 `uv sync --dev` で Python 環境を同期します。
 `task run` は Lethe のデスクトップアプリを起動します。
 
+初回起動前に設定済みの Whisper モデルを事前ダウンロードできます。
+
+```sh
+task models
+```
+
 ## 主な機能
 
 - マイク音声や OS から見える入力/ループバック音声を録音。

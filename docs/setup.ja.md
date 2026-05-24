@@ -22,6 +22,12 @@ task run
 
 `task setup` は uv が PATH に無い場合も自動で用意します。
 
+設定済みの Whisper live/final モデルを事前ダウンロードできます。
+
+```sh
+task models
+```
+
 uv を使う場合:
 
 ```sh
