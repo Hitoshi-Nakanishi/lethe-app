@@ -10,6 +10,8 @@ with Ollama. Audio, transcripts, and notes stay on your machine.
 
 Japanese documentation: [README.ja.md](README.ja.md)
 
+![Lethe desktop app screenshot](docs/assets/lethe-resize-check-topmost.png)
+
 ## Motivation
 
 Meetings and calls often happen across a messy mix of rooms, headsets, video
