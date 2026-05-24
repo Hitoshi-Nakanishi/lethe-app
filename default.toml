@@ -1,0 +1,11 @@
+[paths]
+# Directory for Lethe's settings.json. "~" is expanded.
+settings_dir = "~/.lethe"
+
+# Empty values use the operating system defaults.
+temp_dir = ""
+audio_dir = ""
+transcripts_dir = ""
+notes_dir = ""
+minutes_dir = ""
+sessions_dir = ""

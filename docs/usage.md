@@ -55,6 +55,11 @@ notes.txt
 meta.json
 ```
 
+## Save Locations
+
+Default save/open folders are configured in `default.toml` under `[paths]`.
+Leave a value empty to use the operating system default.
+
 ## Shortcuts
 
 | Key | Action |

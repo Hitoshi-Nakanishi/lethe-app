@@ -48,6 +48,12 @@ ollama pull llama3.1:8b
 Lethe can record and transcribe without Ollama. Correction and minutes
 generation require it.
 
+## Configuration
+
+Edit `default.toml` to choose where Lethe stores settings, temporary WAV files,
+and the initial folders used by save/open dialogs. Set `LETHE_CONFIG` to point
+to another TOML file when you want a machine-local config outside the repo.
+
 ## macOS Tk Note
 
 If a pyenv Python was built without Tcl/Tk, Tkinter will fail to import. Install
