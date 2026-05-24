@@ -2,7 +2,7 @@
 
 Run with:
     lethe                     # console-script entry point
-    python -m audios.lethe    # equivalent
+    python -m recorder.lethe  # equivalent
 
 Lethe records the microphone (or any input device, including a BlackHole
 aggregate that carries Zoom/YouTube audio), transcribes it with Whisper,
@@ -42,7 +42,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import numpy as np
 
-from audios import settings as settings_store
+from recorder import settings as settings_store
 
 APP_NAME = "Lethe"
 APP_TAGLINE = "録音・文字起こし・議事録"
@@ -1140,7 +1140,7 @@ class App:
 
     def _build_preprocessor(self):
         """Return a callable(audio_f32, sr) -> audio_f32 that applies the pipeline."""
-        from audios.preprocess import preprocess_float32
+        from recorder.preprocess import preprocess_float32
 
         def run(audio_f32, sr):
             return preprocess_float32(audio_f32, sr, bandpass=True, denoise=True)

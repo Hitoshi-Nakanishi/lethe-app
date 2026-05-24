@@ -4,16 +4,16 @@ import sys
 import time
 from pathlib import Path
 
-from audios import session as sessionmod
-from audios.recorder import LoopbackUnavailableError, list_devices, record
+from recorder import session as sessionmod
+from recorder.loopback import LoopbackUnavailableError, list_devices, record
 
 
 def _default_output() -> Path:
-    """Default to $DATA_PATH/audios/<timestamp>.wav, else cwd, per AGENTS.md output policy."""
+    """Default to $DATA_PATH/recordings/<timestamp>.wav, else cwd."""
     stamp = time.strftime("%Y%m%d-%H%M%S")
     base = os.environ.get("DATA_PATH")
     if base:
-        return Path(base) / "audios" / f"{stamp}.wav"
+        return Path(base) / "recordings" / f"{stamp}.wav"
     return Path.cwd() / f"{stamp}.wav"
 
 
@@ -23,14 +23,14 @@ def _add_capture_args(parser: argparse.ArgumentParser) -> None:
         "--output",
         type=Path,
         default=None,
-        help="Output WAV path. Defaults to $DATA_PATH/audios/<timestamp>.wav, or ./<timestamp>.wav.",
+        help="Output WAV path. Defaults to $DATA_PATH/recordings/<timestamp>.wav, or ./<timestamp>.wav.",
     )
     parser.add_argument(
         "-d",
         "--duration",
         type=float,
         default=None,
-        help="Max seconds to record. Omit for unlimited (stop via Ctrl+C or `audios stop`).",
+        help="Max seconds to record. Omit for unlimited (stop via Ctrl+C or `recorder stop`).",
     )
     parser.add_argument("--samplerate", type=int, default=48000, help="Sample rate Hz. Default: 48000.")
     parser.add_argument("--channels", type=int, default=2, help="Channel count. Default: 2 (stereo).")
@@ -41,13 +41,13 @@ def _add_session_arg(parser: argparse.ArgumentParser) -> None:
         "--session",
         type=Path,
         default=None,
-        help="Session control dir. Defaults to $DATA_PATH/audios/.session/, or ~/.audios-session/.",
+        help="Session control dir. Defaults to $DATA_PATH/recordings/.session/, or ~/.recorder-session/.",
     )
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="python -m audios",
+        prog="python -m recorder",
         description=(
             "Capture system audio (Zoom calls, browser <video>, anything playing through the "
             "default speaker) via WASAPI loopback on Windows and save it as a WAV file."
@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
                 session_dir=_resolve_session(args),
             )
             print(f"recording (pid={sess.pid()}) -> {out}", file=sys.stderr)
-            print(f"stop with: python -m audios stop", file=sys.stderr)
+            print("stop with: python -m recorder stop", file=sys.stderr)
             return 0
 
         if args.cmd == "stop":

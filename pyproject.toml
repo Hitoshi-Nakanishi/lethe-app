@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# `python -m audios` (WASAPI speaker-loopback CLI) needs SoundCard on Windows.
+# `python -m recorder` (WASAPI speaker-loopback CLI) needs SoundCard on Windows.
 loopback = ["soundcard>=0.4.3", 'pywin32>=311; platform_system == "Windows"']
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
@@ -34,7 +34,7 @@ dev = [
 ]
 
 [project.scripts]
-lethe = "audios.lethe:main"
+lethe = "recorder.lethe:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

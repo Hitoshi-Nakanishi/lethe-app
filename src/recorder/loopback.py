@@ -23,7 +23,7 @@ def _import_soundcard():
     try:
         import soundcard as sc  # type: ignore[import-not-found]
     except ImportError as e:
-        raise LoopbackUnavailableError("`soundcard` package not installed. See docs/audios/install-windows.md.") from e
+        raise LoopbackUnavailableError("`soundcard` package not installed. See docs/setup.md.") from e
     return sc
 
 
@@ -40,7 +40,7 @@ def record(
     Stops when any of these happens first:
       - ``seconds`` elapsed (if not None),
       - KeyboardInterrupt (Ctrl+C),
-      - ``stop_flag`` file exists (polled once per chunk; used by `audios stop`).
+      - ``stop_flag`` file exists (polled once per chunk; used by `recorder stop`).
     """
     sc = _import_soundcard()
     speaker = sc.default_speaker()

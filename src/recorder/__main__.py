@@ -1,4 +1,4 @@
-from audios.cli import main
+from recorder.cli import main
 
 if __name__ == "__main__":
     raise SystemExit(main())

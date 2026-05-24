@@ -6,7 +6,7 @@ import os
 import tempfile
 import time
 
-from audios import settings as st
+from recorder import settings as st
 
 
 def test_load_missing_file_returns_defaults(tmp_path, monkeypatch):
