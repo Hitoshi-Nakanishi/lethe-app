@@ -4,14 +4,14 @@ tasks:
   run:
     desc: Run the Lethe desktop app
     cmds:
-      - uv run --no-sync lethe {{.CLI_ARGS}}
+      - python scripts/uv_bootstrap.py run --no-sync lethe {{.CLI_ARGS}}
 
   recorder:
     desc: Run the recorder helper CLI
     cmds:
-      - uv run --no-sync python -m recorder {{.CLI_ARGS}}
+      - python scripts/uv_bootstrap.py run --no-sync python -m recorder {{.CLI_ARGS}}
 
   devices:
     desc: List Windows loopback capture devices
     cmds:
-      - uv run --no-sync python -m recorder devices
+      - python scripts/uv_bootstrap.py run --no-sync python -m recorder devices

@@ -11,6 +11,17 @@ Japanese version: [setup.ja.md](setup.ja.md)
 
 ## Install
 
+Using Task:
+
+```sh
+git clone <this repo> lethe-app
+cd lethe-app
+task setup
+task run
+```
+
+`task setup` bootstraps uv when it is not available on PATH.
+
 Using uv:
 
 ```sh

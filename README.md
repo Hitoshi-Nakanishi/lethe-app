@@ -18,15 +18,15 @@ sending private audio to an external service.
 
 ## Quick Start
 
-Install [Task](https://taskfile.dev/) and [uv](https://docs.astral.sh/uv/),
-then run:
+Install [Task](https://taskfile.dev/) and Python 3.11 or newer, then run:
 
 ```sh
 task setup
 task run
 ```
 
-`task setup` syncs the Python environment with `uv sync --dev`.
+`task setup` bootstraps [uv](https://docs.astral.sh/uv/) when needed and
+syncs the Python environment with `uv sync --dev`.
 `task run` starts the Lethe desktop app.
 
 ## Features

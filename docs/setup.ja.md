@@ -11,6 +11,17 @@ English version: [setup.md](setup.md)
 
 ## インストール
 
+Task を使う場合:
+
+```sh
+git clone <this repo> lethe-app
+cd lethe-app
+task setup
+task run
+```
+
+`task setup` は uv が PATH に無い場合も自動で用意します。
+
 uv を使う場合:
 
 ```sh

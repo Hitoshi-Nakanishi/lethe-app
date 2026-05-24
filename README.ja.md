@@ -18,14 +18,15 @@ English documentation: [README.md](README.md)
 
 ## クイックスタート
 
-[Task](https://taskfile.dev/) と [uv](https://docs.astral.sh/uv/) を入れてから実行します。
+[Task](https://taskfile.dev/) と Python 3.11 以上を入れてから実行します。
 
 ```sh
 task setup
 task run
 ```
 
-`task setup` は `uv sync --dev` で Python 環境を同期します。
+`task setup` は必要に応じて [uv](https://docs.astral.sh/uv/) を用意し、
+`uv sync --dev` で Python 環境を同期します。
 `task run` は Lethe のデスクトップアプリを起動します。
 
 ## 主な機能
