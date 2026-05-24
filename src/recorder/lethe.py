@@ -760,23 +760,28 @@ class App:
         self.recorder = MicRecorder()
 
         root.title(f"{APP_NAME} — {self._tr('tagline')}")
-        root.geometry(self._settings.get("geometry") or "1060x740")
-        root.minsize(900, 700)
+        root.geometry(self._settings.get("geometry") or "1180x780")
+        root.minsize(1060, 720)
         root.configure(background=BG)
 
         self._configure_style()
         self._build_menu()
         self._build_header()
 
-        paned = ttk.PanedWindow(root, orient="horizontal")
-        paned.pack(fill="both", expand=True, padx=10, pady=(6, 10))
-        left = ttk.Frame(paned, style="Card.TFrame")
-        right = ttk.Frame(paned, style="Card.TFrame")
-        paned.add(left, weight=3)
-        paned.add(right, weight=2)
+        main = ttk.PanedWindow(root, orient="vertical")
+        main.pack(fill="both", expand=True, padx=10, pady=(6, 10))
+        controls = ttk.Frame(main, style="Card.TFrame")
+        editors = ttk.PanedWindow(main, orient="horizontal")
+        transcript_panel = ttk.Frame(editors, style="Card.TFrame")
+        notes_panel = ttk.Frame(editors, style="Card.TFrame")
+        editors.add(transcript_panel, weight=1)
+        editors.add(notes_panel, weight=1)
+        main.add(controls, weight=0)
+        main.add(editors, weight=1)
 
-        self._build_left(left)
-        self._build_right(right)
+        self._build_controls(controls)
+        self._build_transcript(transcript_panel)
+        self._build_notes(notes_panel)
         self._bind_shortcuts()
 
         root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -1058,12 +1063,16 @@ class App:
         self.theme_combo.bind("<<ComboboxSelected>>", self._on_theme_change)
         inner.bind("<Configure>", lambda event: self.tagline_label.configure(wraplength=max(120, event.width // 3)))
 
-    # ---------- left pane (recorder + playback + transcript) ----------
+    # ---------- main layout ----------
 
-    def _build_left(self, parent: ttk.Frame) -> None:
-        # --- source row: input device + recording options ---
+    def _build_controls(self, parent: ttk.Frame) -> None:
+        parent.columnconfigure(0, weight=3, uniform="controls")
+        parent.columnconfigure(1, weight=2, uniform="controls")
+        parent.columnconfigure(2, weight=3, uniform="controls")
+
+        # --- source: input device + recording options ---
         source = ttk.Frame(parent, style="Card.TFrame")
-        source.pack(fill="x", padx=PAD_X, pady=(PAD_Y, 4))
+        source.grid(row=0, column=0, sticky="nsew", padx=(PAD_X, 8), pady=(PAD_Y, 8))
         source.columnconfigure(1, weight=1)
         self.input_label = ttk.Label(source, text=self._tr("input"), style="Card.TLabel")
         self.input_label.grid(row=0, column=0, sticky="w", pady=(0, 6))
@@ -1093,83 +1102,9 @@ class App:
         self.nr_check = Switch(source, text=self._tr("noise_reduce"), variable=self._nr_var, font=self._font())
         self.nr_check.grid(row=3, column=0, columnspan=3, sticky="w")
         Tooltip(self.nr_check, TOOLTIP_NR)
-        self.refresh_devices()
-        self._update_mic_capture_controls()
 
-        # --- controls: record + live | open audio + export mp3 ---
-        controls = ttk.Frame(parent, style="Card.TFrame")
-        controls.pack(fill="x", padx=PAD_X, pady=(6, 4))
-        controls.columnconfigure(0, weight=1)
-        controls.columnconfigure(1, weight=1)
-        self.record_button = ttk.Button(
-            controls, text=self._tr("record"), width=14, style="Accent.TButton", command=self.toggle_record
-        )
-        self.record_button.grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 6))
-        Tooltip(self.record_button, TOOLTIP_RECORD)
-        self.live_check = Switch(controls, text=self._tr("live"), variable=self._live_var, font=self._font())
-        self.live_check.grid(row=0, column=1, sticky="w", padx=(6, 0), pady=(0, 6))
-        Tooltip(self.live_check, TOOLTIP_LIVE)
-        self._update_mic_capture_controls()
-        self.export_mp3_button = ttk.Button(
-            controls, text=self._tr("save_mp3"), width=11, command=self.export_mp3, state="disabled"
-        )
-        self.export_mp3_button.grid(row=1, column=1, sticky="ew", padx=(6, 0))
-        Tooltip(self.export_mp3_button, TOOLTIP_MP3)
-        self.open_button = ttk.Button(controls, text=self._tr("open_audio"), width=11, command=self.open_audio)
-        self.open_button.grid(row=1, column=0, sticky="ew", padx=(0, 6))
-        Tooltip(self.open_button, TOOLTIP_OPEN)
-
-        # --- wave row: audio input while recording / analysis pulse while busy ---
-        meter_row = ttk.Frame(parent, style="Card.TFrame")
-        meter_row.pack(fill="x", padx=PAD_X, pady=(4, 10))
-        self.meter_caption = ttk.Label(meter_row, text="", style="Hint.TLabel", width=16)
-        self.meter_caption.pack(side="left")
-        self.wave = WaveMeter(meter_row)
-        self.wave.pack(side="left", fill="x", expand=True, padx=(6, 0))
-
-        ttk.Separator(parent, orient="horizontal").pack(fill="x", padx=PAD_X)
-
-        # --- transcript section: title + export ---
-        transcript_header = ttk.Frame(parent, style="Card.TFrame")
-        transcript_header.pack(fill="x", padx=PAD_X, pady=(12, 4))
-        self.transcript_title = ttk.Label(transcript_header, text=self._tr("transcript"), style="Title.TLabel")
-        self.transcript_title.pack(side="left")
-        self.export_txt_button = ttk.Button(
-            transcript_header, text=self._tr("save"), width=8, command=self.export_transcript, state="disabled"
-        )
-        self.export_txt_button.pack(side="right")
-        Tooltip(self.export_txt_button, TOOLTIP_EXPORT_TXT)
-
-        # --- numbered workflow actions ---
-        actions = ttk.Frame(parent, style="Card.TFrame")
-        actions.pack(fill="x", padx=PAD_X, pady=(0, 2))
-        actions.columnconfigure(0, weight=1)
-        actions.columnconfigure(1, weight=1)
-        self.hq_button = ttk.Button(
-            actions, text=self._tr("hq"), style="Step.TButton", command=self.hq_transcribe, state="disabled"
-        )
-        self.hq_button.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
-        Tooltip(self.hq_button, TOOLTIP_HQ)
-        self.refine_button = ttk.Button(
-            actions, text=self._tr("refine"), style="Step.TButton", command=self.refine_transcript, state="disabled"
-        )
-        self.refine_button.grid(row=1, column=0, sticky="ew", padx=(0, 3))
-        Tooltip(self.refine_button, TOOLTIP_REFINE)
-        self.minutes_button = ttk.Button(
-            actions, text=self._tr("minutes"), style="Step.TButton", command=self.generate_minutes, state="disabled"
-        )
-        self.minutes_button.grid(row=1, column=1, sticky="ew", padx=(3, 0))
-        Tooltip(self.minutes_button, TOOLTIP_MINUTES)
-
-        self.workflow_label = ttk.Label(parent, text=self._tr("workflow"), style="Workflow.TLabel")
-        self.workflow_label.pack(anchor="w", padx=PAD_X, pady=(4, 6))
-        parent.bind(
-            "<Configure>", lambda event: self.workflow_label.configure(wraplength=max(160, event.width - PAD_X * 2)), add="+"
-        )
-
-        # --- playback bar ---
-        playback = ttk.Frame(parent, style="Card.TFrame")
-        playback.pack(fill="x", padx=PAD_X, pady=(0, 6))
+        playback = ttk.Frame(source, style="Card.TFrame")
+        playback.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(14, 0))
         playback.columnconfigure(2, weight=1)
         self.play_button = ttk.Button(playback, text=self._tr("play"), width=12, command=self.toggle_play, state="disabled")
         self.play_button.grid(row=0, column=0, sticky="ew", padx=(0, 4), pady=(0, 4))
@@ -1181,9 +1116,81 @@ class App:
         self.timestamp_hint = ttk.Label(playback, text=self._tr("click_timestamp"), style="Hint.TLabel")
         self.timestamp_hint.grid(row=1, column=0, columnspan=3, sticky="w")
         playback.bind("<Configure>", lambda event: self.timestamp_hint.configure(wraplength=max(160, event.width)), add="+")
+        self.refresh_devices()
+        self._update_mic_capture_controls()
+
+        # --- controls: record + live | open audio + export mp3 ---
+        controls = ttk.Frame(parent, style="Card.TFrame")
+        controls.grid(row=0, column=1, sticky="nsew", padx=8, pady=(PAD_Y, 8))
+        controls.columnconfigure(0, weight=1)
+        controls.columnconfigure(1, weight=1)
+        self.record_button = ttk.Button(
+            controls, text=self._tr("record"), width=14, style="Accent.TButton", command=self.toggle_record
+        )
+        self.record_button.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        Tooltip(self.record_button, TOOLTIP_RECORD)
+        self.live_check = Switch(controls, text=self._tr("live"), variable=self._live_var, font=self._font())
+        self.live_check.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        Tooltip(self.live_check, TOOLTIP_LIVE)
+        self._update_mic_capture_controls()
+        self.export_mp3_button = ttk.Button(
+            controls, text=self._tr("save_mp3"), width=11, command=self.export_mp3, state="disabled"
+        )
+        self.export_mp3_button.grid(row=2, column=1, sticky="ew", padx=(6, 0))
+        Tooltip(self.export_mp3_button, TOOLTIP_MP3)
+        self.open_button = ttk.Button(controls, text=self._tr("open_audio"), width=11, command=self.open_audio)
+        self.open_button.grid(row=2, column=0, sticky="ew", padx=(0, 6))
+        Tooltip(self.open_button, TOOLTIP_OPEN)
+
+        # --- wave row: audio input while recording / analysis pulse while busy ---
+        meter_row = ttk.Frame(controls, style="Card.TFrame")
+        meter_row.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        self.meter_caption = ttk.Label(meter_row, text="", style="Hint.TLabel", width=16)
+        self.meter_caption.pack(side="left")
+        self.wave = WaveMeter(meter_row)
+        self.wave.pack(side="left", fill="x", expand=True, padx=(6, 0))
+
+        # --- numbered workflow actions ---
+        actions = ttk.Frame(parent, style="Card.TFrame")
+        actions.grid(row=0, column=2, sticky="nsew", padx=(8, PAD_X), pady=(PAD_Y, 8))
+        actions.columnconfigure(0, weight=1)
+        actions.columnconfigure(1, weight=1)
+        self.hq_button = ttk.Button(
+            actions, text=self._tr("hq"), style="Step.TButton", command=self.hq_transcribe, state="disabled"
+        )
+        self.hq_button.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        Tooltip(self.hq_button, TOOLTIP_HQ)
+        self.refine_button = ttk.Button(
+            actions, text=self._tr("refine"), style="Step.TButton", command=self.refine_transcript, state="disabled"
+        )
+        self.refine_button.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        Tooltip(self.refine_button, TOOLTIP_REFINE)
+        self.minutes_button = ttk.Button(
+            actions, text=self._tr("minutes"), style="Step.TButton", command=self.generate_minutes, state="disabled"
+        )
+        self.minutes_button.grid(row=2, column=0, columnspan=2, sticky="ew")
+        Tooltip(self.minutes_button, TOOLTIP_MINUTES)
+
+        self.workflow_label = ttk.Label(actions, text=self._tr("workflow"), style="Workflow.TLabel")
+        self.workflow_label.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(12, 0))
+        actions.bind("<Configure>", lambda event: self.workflow_label.configure(wraplength=max(160, event.width)), add="+")
+
+    def _build_transcript(self, parent: ttk.Frame) -> None:
+        parent.rowconfigure(1, weight=1)
+        parent.columnconfigure(0, weight=1)
+
+        transcript_header = ttk.Frame(parent, style="Card.TFrame")
+        transcript_header.grid(row=0, column=0, sticky="ew", padx=PAD_X, pady=(PAD_Y, 6))
+        self.transcript_title = ttk.Label(transcript_header, text=self._tr("transcript"), style="Title.TLabel")
+        self.transcript_title.pack(side="left")
+        self.export_txt_button = ttk.Button(
+            transcript_header, text=self._tr("save"), width=8, command=self.export_transcript, state="disabled"
+        )
+        self.export_txt_button.pack(side="right")
+        Tooltip(self.export_txt_button, TOOLTIP_EXPORT_TXT)
 
         text_frame = ttk.Frame(parent, style="Card.TFrame")
-        text_frame.pack(fill="both", expand=True, padx=PAD_X, pady=(0, PAD_Y))
+        text_frame.grid(row=1, column=0, sticky="nsew", padx=PAD_X, pady=(0, PAD_Y))
         self.transcript = tk.Text(
             text_frame,
             wrap="word",
@@ -1212,11 +1219,12 @@ class App:
         self.transcript.tag_bind("seek", "<Enter>", lambda _e: self.transcript.config(cursor="hand2"))
         self.transcript.tag_bind("seek", "<Leave>", lambda _e: self.transcript.config(cursor="xterm"))
 
-    # ---------- right pane (notes) ----------
+    def _build_notes(self, parent: ttk.Frame) -> None:
+        parent.rowconfigure(3, weight=1)
+        parent.columnconfigure(0, weight=1)
 
-    def _build_right(self, parent: ttk.Frame) -> None:
         notes_header = ttk.Frame(parent, style="Card.TFrame")
-        notes_header.pack(fill="x", padx=PAD_X, pady=(PAD_Y, 4))
+        notes_header.grid(row=0, column=0, sticky="ew", padx=PAD_X, pady=(PAD_Y, 4))
         self.notes_title = ttk.Label(notes_header, text=self._tr("notes"), style="Title.TLabel")
         self.notes_title.pack(side="left")
         self.notes_load_button = ttk.Button(notes_header, text=self._tr("load"), width=8, command=self.load_notes)
@@ -1231,15 +1239,15 @@ class App:
             wraplength=380,
             justify="left",
         )
-        self.notes_hint.pack(anchor="w", padx=PAD_X, pady=(0, 6))
+        self.notes_hint.grid(row=1, column=0, sticky="ew", padx=PAD_X, pady=(0, 6))
         parent.bind(
             "<Configure>", lambda event: self.notes_hint.configure(wraplength=max(160, event.width - PAD_X * 2)), add="+"
         )
 
-        ttk.Separator(parent, orient="horizontal").pack(fill="x", padx=PAD_X)
+        ttk.Separator(parent, orient="horizontal").grid(row=2, column=0, sticky="ew", padx=PAD_X)
 
         notes_frame = ttk.Frame(parent, style="Card.TFrame")
-        notes_frame.pack(fill="both", expand=True, padx=PAD_X, pady=(10, PAD_Y))
+        notes_frame.grid(row=3, column=0, sticky="nsew", padx=PAD_X, pady=(10, PAD_Y))
         self.notes_text = tk.Text(
             notes_frame,
             wrap="word",
