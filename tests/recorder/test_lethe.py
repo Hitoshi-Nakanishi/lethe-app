@@ -268,17 +268,18 @@ def test_export_dataset_writes_one_to_one_folder_mapping(tmp_path, monkeypatch):
 
     App.export_dataset(app)
 
-    stem = folder.name
-    audio = folder / f"{stem}.mp3"
-    transcript = folder / f"{stem}.transcript.md"
-    notes = folder / f"{stem}.notes.md"
+    audio = folder / "audio.mp3"
+    transcript = folder / "transcript.md"
+    memo = folder / "memo.md"
     manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
     assert audio.read_bytes() == b"mp3"
     assert transcript.read_text(encoding="utf-8") == "[00:00] hello\n"
-    assert notes.read_text(encoding="utf-8") == "# Notes\n- Alice\n"
+    assert memo.read_text(encoding="utf-8") == "# Notes\n- Alice\n"
+    assert manifest["dataset_id"] == folder.name
     assert manifest["path_mapping"] == {
-        "audio": audio.name,
-        "transcript": transcript.name,
-        "notes": notes.name,
+        "audio": "audio.mp3",
+        "transcript": "transcript.md",
+        "memo": "memo.md",
     }
+    assert [item["role"] for item in manifest["files"]] == ["audio", "transcript", "memo"]
     assert infos[-1] == ("Saved", f"Dataset saved to:\n{folder}")
