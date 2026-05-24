@@ -20,6 +20,13 @@ pip install -e .
 lethe
 ```
 
+With uv:
+
+```sh
+uv sync --dev
+uv run lethe
+```
+
 ## Documentation
 
 - [Setup guide](docs/setup.md)
@@ -46,6 +53,12 @@ lethe
 
 ```sh
 pytest -q
+```
+
+With uv:
+
+```sh
+uv run pytest -q
 ```
 
 ## Project Layout

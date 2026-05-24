@@ -17,6 +17,13 @@ pip install -e .
 lethe
 ```
 
+uv を使う場合:
+
+```sh
+uv sync --dev
+uv run lethe
+```
+
 ## ドキュメント
 
 - [セットアップガイド](docs/setup.ja.md)
@@ -43,6 +50,12 @@ lethe
 
 ```sh
 pytest -q
+```
+
+uv を使う場合:
+
+```sh
+uv run pytest -q
 ```
 
 ## プロジェクト構成
