@@ -738,10 +738,10 @@ class App:
         self.tagline_label.config(text=f"  {self._tr('tagline')}")
         self.dark_check.set_text(self._tr("dark"))
         self.input_label.config(text=self._tr("input"))
-        self.refresh_button.config(text=self._tr("refresh_input"))
+        self.refresh_button.config(text="↻")
         self._refresh_device_labels()
-        self.mic_check.set_text(self._tr("mic_capture"))
-        self.nr_check.set_text(self._tr("noise_reduce"))
+        self.mic_label.config(text=self._tr("mic_capture"))
+        self.nr_label.config(text=self._tr("noise_reduce"))
         self.record_button.config(text=self._tr("stop" if self.is_recording else "record"))
         self.live_check.set_text(self._tr("live"))
         self.export_mp3_button.config(text=self._tr("save_mp3"))
@@ -863,51 +863,58 @@ class App:
     # ---------- main layout ----------
 
     def _build_controls(self, parent: ttk.Frame) -> None:
-        parent.columnconfigure(0, weight=3, uniform="controls")
-        parent.columnconfigure(1, weight=2, uniform="controls")
+        parent.columnconfigure(0, weight=4, uniform="controls")
+        parent.columnconfigure(1, weight=3, uniform="controls")
         parent.columnconfigure(2, weight=3, uniform="controls")
 
         # --- source: input device + recording options ---
         source = ttk.Frame(parent, style="Card.TFrame")
         source.grid(row=0, column=0, sticky="nsew", padx=(PAD_X, 8), pady=(PAD_Y, 8))
-        source.columnconfigure(1, weight=1)
+        source.columnconfigure(0, minsize=130)
+        source.columnconfigure(1, minsize=176)
+        source.columnconfigure(2, weight=1)
         self.input_label = ttk.Label(source, text=self._tr("input"), style="Card.TLabel")
         self.input_label.grid(row=0, column=0, sticky="w", pady=(0, 6))
-        self.device_combo = ttk.Combobox(source, state="readonly", width=26, font=self._font())
-        self.device_combo.grid(row=0, column=1, sticky="w", padx=(8, 4), pady=(0, 6))
+        self.device_combo = ttk.Combobox(source, state="readonly", width=19, font=self._font())
+        self.device_combo.grid(row=0, column=1, sticky="w", padx=(8, 12), pady=(0, 6))
         self.device_combo.bind("<<ComboboxSelected>>", self._on_device_change)
-        self.refresh_button = ttk.Button(source, text=self._tr("refresh_input"), width=8, command=self.refresh_devices)
+        self.refresh_button = ttk.Button(source, text="↻", width=4, command=self.refresh_devices)
         self.refresh_button.grid(row=0, column=2, sticky="w", pady=(0, 6))
+        Tooltip(self.refresh_button, self._tr("refresh_input"))
+        self.mic_label = ttk.Label(source, text=self._tr("mic_capture"), style="Card.TLabel")
+        self.mic_label.grid(row=2, column=0, sticky="w", pady=(4, 4))
         self.mic_check = Switch(
             source,
-            text=self._tr("mic_capture"),
+            text="",
             variable=self._mic_capture_var,
             colors=_ui_colors,
             command=self._on_mic_capture_change,
             font=self._font(),
             default_font_size=DEFAULT_FONT_SIZE,
         )
-        self.mic_check.grid(row=2, column=0, columnspan=3, sticky="w", pady=(4, 4))
+        self.mic_check.grid(row=2, column=1, sticky="w", padx=(8, 12), pady=(4, 4))
         Tooltip(self.mic_check, TOOLTIP_MIC_CAPTURE)
         ttk.Label(source, text="LLM", style="Card.TLabel").grid(row=1, column=0, sticky="w")
         self.llm_combo = ttk.Combobox(
             source,
             state="readonly",
-            width=22,
+            width=19,
             values=self._llm_models,
             textvariable=self._llm_model_var,
             font=self._font(),
         )
-        self.llm_combo.grid(row=1, column=1, columnspan=2, sticky="w", padx=(8, 4), pady=(0, 6))
+        self.llm_combo.grid(row=1, column=1, sticky="w", padx=(8, 12), pady=(0, 6))
+        self.nr_label = ttk.Label(source, text=self._tr("noise_reduce"), style="Card.TLabel")
+        self.nr_label.grid(row=3, column=0, sticky="w")
         self.nr_check = Switch(
             source,
-            text=self._tr("noise_reduce"),
+            text="",
             variable=self._nr_var,
             colors=_ui_colors,
             font=self._font(),
             default_font_size=DEFAULT_FONT_SIZE,
         )
-        self.nr_check.grid(row=3, column=0, columnspan=3, sticky="w")
+        self.nr_check.grid(row=3, column=1, sticky="w", padx=(8, 12))
         Tooltip(self.nr_check, TOOLTIP_NR)
 
         playback = ttk.Frame(source, style="Card.TFrame")
