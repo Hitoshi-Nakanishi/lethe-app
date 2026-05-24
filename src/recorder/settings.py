@@ -39,13 +39,16 @@ DEFAULT_CONFIG: dict = {
         "default_llm_model": "llama3.1:8b",
         "llm_models": ["llama3.1:8b", "qwen2.5:7b", "mistral:7b"],
     },
+    "defaults": {
+        "live": True,
+    },
 }
 
 DEFAULTS: dict = {
     "device_index": None,
     "mic_capture": True,
     "noise_reduce": False,
-    "live": False,
+    "live": True,
     "geometry": "",
     "llm_model": "",
     "theme": "midnight",
@@ -65,6 +68,7 @@ def _merge_config(data: dict) -> dict:
     out = {
         "paths": dict(DEFAULT_CONFIG["paths"]),
         "models": dict(DEFAULT_CONFIG["models"]),
+        "defaults": dict(DEFAULT_CONFIG["defaults"]),
     }
     paths = data.get("paths") if isinstance(data, dict) else None
     if isinstance(paths, dict):
@@ -78,6 +82,11 @@ def _merge_config(data: dict) -> dict:
                 out["models"][key] = [str(item) for item in value if str(item).strip()]
             elif key != "llm_models":
                 out["models"][key] = str(value)
+    defaults = data.get("defaults") if isinstance(data, dict) else None
+    if isinstance(defaults, dict):
+        live = defaults.get("live")
+        if isinstance(live, bool):
+            out["defaults"]["live"] = live
     return out
 
 
@@ -140,9 +149,20 @@ def llm_models() -> list[str]:
     return out
 
 
+def default_settings() -> dict:
+    """Return app setting defaults merged with TOML-configured defaults."""
+    out = dict(DEFAULTS)
+    config_defaults = load_config().get("defaults", {})
+    if isinstance(config_defaults, dict):
+        for key, value in config_defaults.items():
+            if key in out:
+                out[key] = value
+    return out
+
+
 def load_settings() -> dict:
     """Return saved settings merged onto defaults; defaults if absent/corrupt."""
-    out = dict(DEFAULTS)
+    out = default_settings()
     try:
         data = json.loads(settings_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
