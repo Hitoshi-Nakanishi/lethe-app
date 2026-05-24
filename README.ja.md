@@ -37,6 +37,13 @@ task run
 task models
 ```
 
+You can also list and pre-download Ollama LLM models.
+
+```sh
+task llm-model-list
+task download-llm-model -- llama3.1:8b
+```
+
 ## 主な機能
 
 - マイク音声や OS から見える入力/ループバック音声を録音。

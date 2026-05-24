@@ -28,6 +28,13 @@ Pre-download the configured Whisper live/final models:
 task models
 ```
 
+List and pre-download configured Ollama LLM models:
+
+```sh
+task llm-model-list
+task download-llm-model -- llama3.1:8b
+```
+
 Using uv:
 
 ```sh
@@ -59,7 +66,7 @@ Install Ollama, start the service, and pull a model:
 
 ```sh
 ollama serve
-ollama pull llama3.1:8b
+task download-llm-model -- llama3.1:8b
 ```
 
 Lethe can record and transcribe without Ollama. Correction and minutes
