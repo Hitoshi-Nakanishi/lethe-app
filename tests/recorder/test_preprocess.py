@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from audios.preprocess import preprocess_float32
+from recorder.preprocess import preprocess_float32
 
 
 def _rms(x: np.ndarray) -> float:

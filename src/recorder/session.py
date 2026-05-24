@@ -1,4 +1,4 @@
-"""Detached start/stop control for ``audios record``.
+"""Detached start/stop control for ``recorder record``.
 
 A *session* is a directory holding three small files:
 
@@ -76,8 +76,8 @@ class Session:
 def default_session_dir() -> Path:
     base = os.environ.get("DATA_PATH")
     if base:
-        return Path(base) / "audios" / ".session"
-    return Path.home() / ".audios-session"
+        return Path(base) / "recordings" / ".session"
+    return Path.home() / ".recorder-session"
 
 
 def start(
@@ -92,7 +92,7 @@ def start(
     sess = Session(session_dir)
     if sess.is_running():
         raise RuntimeError(
-            f"recorder already running (pid={sess.pid()}, output={sess.output()}). run `python -m audios stop` first."
+            f"recorder already running (pid={sess.pid()}, output={sess.output()}). run `python -m recorder stop` first."
         )
     sess.dir.mkdir(parents=True, exist_ok=True)
     sess.clear()
@@ -101,7 +101,7 @@ def start(
     cmd = [
         sys.executable,
         "-m",
-        "audios",
+        "recorder",
         "_serve",
         "--session",
         str(sess.dir),

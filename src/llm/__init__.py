@@ -2,7 +2,7 @@
 
 - ``transcribe``: file-based Whisper CLI transcription (`python -m llm`).
 - ``transcribe_stream``: realtime-style streaming transcription via
-  faster-whisper (medium), used by ``audios.lethe`` live mode.
+  faster-whisper (medium), used by ``recorder.lethe`` live mode.
 - ``transcribe_final``: one-shot high-accuracy full-file pass
   (Whisper large-v3) run when recording stops.
 - ``refine``: Ollama-driven post-processing that reconciles a transcript

@@ -1,7 +1,7 @@
 """Tests for Lethe pure-logic helpers and the Player.
 
 These exercise only headless logic -- no audio device, display, or
-network is touched. Importing ``audios.lethe`` imports tkinter, which is
+network is touched. Importing ``recorder.lethe`` imports tkinter, which is
 safe without a display; only ``tk.Tk()`` would need one, and it is never
 called here.
 """
@@ -15,8 +15,8 @@ from types import SimpleNamespace
 
 import numpy as np
 
-import audios.lethe as lethe
-from audios.lethe import PLAYBACK_SR, App, Player, _fmt_time, _is_connection_error, _parse_leading_timestamp, describe_error
+import recorder.lethe as lethe
+from recorder.lethe import PLAYBACK_SR, App, Player, _fmt_time, _is_connection_error, _parse_leading_timestamp, describe_error
 
 
 def test_fmt_time_minutes_and_hours():

@@ -4,6 +4,17 @@
 
 Lethe はマイクや任意の入力デバイスから音声を録音し、Whisper でローカル文字起こしを行います。メモに書いた固有名詞や専門用語で文字起こしを校正し、Ollama で Markdown の議事録を生成できます。音声、文字起こし、メモは外部へ送信しません。
 
+このプロジェクトの目的は、現代のデスクトップ上で発生する音声を
+ひとつのワークフローで記録し、後から検索・確認できる議事録へ変換する
+ことです。
+
+- macOS と Windows の両方で、マイク経由の発話を録音できます。対面会議、
+  ナレーション、インタビュー、自分側の通話音声をそのまま記録できます。
+- Zoom、YouTube、Web 埋め込みプレイヤーなどの再生音声も、利用可能な
+  入力デバイスやループバックデバイスへルーティングすれば録音できます。
+- 文字起こしと議事録作成をローカルで完結させ、機密性のある会議音声を
+  外部サービスへ送らずに扱えます。
+
 English documentation: [README.md](README.md)
 
 ## クイックスタート
@@ -38,7 +49,7 @@ uv run lethe
 - Ollama による Markdown 議事録生成。
 - 音声、文字起こし、メモ、メタデータをまとめたセッション保存。
 - 長時間録音でもメモリ使用量が増えにくいディスク保存型録音。
-- macOS と Windows に対応。
+- macOS と Windows の cross-platform 対応。
 
 ## 必要なもの
 
@@ -61,9 +72,10 @@ uv run pytest -q
 ## プロジェクト構成
 
 ```text
-src/audios/lethe.py          Tkinter GUI
-src/audios/settings.py       設定保存と一時ファイル掃除
-src/audios/preprocess.py     音声前処理
+src/recorder/lethe.py        Tkinter GUI
+src/recorder/settings.py     設定保存と一時ファイル掃除
+src/recorder/preprocess.py   音声前処理
+src/recorder/loopback.py     Windows WASAPI loopback recorder
 src/llm/transcribe_stream.py ライブ文字起こし
 src/llm/transcribe_final.py  高精度文字起こし
 src/llm/refine.py            Ollama による校正
