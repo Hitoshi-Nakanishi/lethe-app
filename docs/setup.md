@@ -72,12 +72,18 @@ the initial folders used by save/open dialogs, and the LLM model choices shown
 in the app. Set `LETHE_CONFIG` to point to another TOML file when you want a
 machine-local config outside the repo.
 
-The live transcript checkbox is on by default. Change the initial value for
-new settings files with:
+Initial UI defaults are also configurable. They apply before a value is saved
+in `settings.json`; after that, the user's saved choice wins. For example:
 
 ```toml
 [defaults]
+mic_capture = true
+noise_reduce = false
 live = false
+llm_model = "qwen2.5:7b"
+theme = "midnight"
+dark_mode = true
+language = "en"
 ```
 
 ## macOS Tk Note

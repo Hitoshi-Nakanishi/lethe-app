@@ -65,6 +65,9 @@ llm_models = ["qwen2.5:7b", "mistral:7b"]
 
 [defaults]
 live = false
+noise_reduce = true
+llm_model = "mistral:7b"
+language = "en"
 """,
         encoding="utf-8",
     )
@@ -78,29 +81,68 @@ live = false
     assert loaded["models"]["default_llm_model"] == "qwen2.5:7b"
     assert loaded["models"]["llm_models"] == ["qwen2.5:7b", "mistral:7b"]
     assert loaded["defaults"]["live"] is False
+    assert loaded["defaults"]["noise_reduce"] is True
+    assert loaded["defaults"]["llm_model"] == "mistral:7b"
+    assert loaded["defaults"]["language"] == "en"
 
 
 def test_load_settings_uses_toml_defaults_before_saved_preferences(tmp_path, monkeypatch):
     config = tmp_path / "default.toml"
-    config.write_text("[defaults]\nlive = false\n", encoding="utf-8")
+    config.write_text(
+        """
+[defaults]
+mic_capture = false
+noise_reduce = true
+live = false
+llm_model = "qwen2.5:7b"
+theme = "aurora"
+dark_mode = false
+language = "en"
+""",
+        encoding="utf-8",
+    )
     monkeypatch.setattr(st, "CONFIG_PATH", config)
     monkeypatch.setattr(st, "SETTINGS_PATH", tmp_path / "settings.json")
 
     loaded = st.load_settings()
 
+    assert loaded["mic_capture"] is False
+    assert loaded["noise_reduce"] is True
     assert loaded["live"] is False
+    assert loaded["llm_model"] == "qwen2.5:7b"
+    assert loaded["theme"] == "aurora"
+    assert loaded["dark_mode"] is False
+    assert loaded["language"] == "en"
 
 
 def test_saved_settings_override_toml_defaults(tmp_path, monkeypatch):
     config = tmp_path / "default.toml"
-    config.write_text("[defaults]\nlive = false\n", encoding="utf-8")
+    config.write_text("[defaults]\nlive = false\nllm_model = \"qwen2.5:7b\"\n", encoding="utf-8")
     monkeypatch.setattr(st, "CONFIG_PATH", config)
     monkeypatch.setattr(st, "SETTINGS_PATH", tmp_path / "settings.json")
-    st.save_settings({"live": True})
+    st.save_settings({"live": True, "llm_model": "mistral:7b"})
 
     loaded = st.load_settings()
 
     assert loaded["live"] is True
+    assert loaded["llm_model"] == "mistral:7b"
+
+
+def test_invalid_toml_defaults_are_ignored(tmp_path):
+    config = tmp_path / "default.toml"
+    config.write_text(
+        """
+[defaults]
+live = "false"
+llm_model = 123
+""",
+        encoding="utf-8",
+    )
+
+    loaded = st.load_config(config)
+
+    assert loaded["defaults"]["live"] is True
+    assert loaded["defaults"]["llm_model"] == ""
 
 
 def test_llm_models_includes_default_when_missing(tmp_path, monkeypatch):
