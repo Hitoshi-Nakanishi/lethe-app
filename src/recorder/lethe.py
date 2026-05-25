@@ -572,6 +572,14 @@ class App:
         self._hq_combo_ids: list[str] = []
         self._downloading_model: str | None = None
         self._hq_should_run_after_download = False
+        self._settings_window: tk.Toplevel | None = None
+        self.theme_combo: ttk.Combobox | None = None
+        self.language_combo: ttk.Combobox | None = None
+        self.dark_check: Switch | None = None
+        self.theme_label_widget: ttk.Label | None = None
+        self.language_label_widget: ttk.Label | None = None
+        self.dark_label_widget: ttk.Label | None = None
+        self._settings_tooltip: Tooltip | None = None
         self._theme_var = tk.StringVar(value=THEMES.get(self._settings.get("theme"), THEMES["midnight"])["label"])
         self._dark_var = tk.BooleanVar(value=bool(self._settings.get("dark_mode")))
         saved_language = str(self._settings.get("language") or "ja")
@@ -591,9 +599,10 @@ class App:
         self._configure_style()
         self._build_menu()
         self._build_header()
+        self._build_status_bar()
 
         main = ttk.PanedWindow(root, orient="vertical")
-        main.pack(fill="both", expand=True, padx=10, pady=(6, 10))
+        main.pack(side="top", fill="both", expand=True, padx=10, pady=(6, 6))
         controls = ttk.Frame(main, style="Card.TFrame")
         editors = ttk.PanedWindow(main, orient="horizontal")
         transcript_panel = ttk.Frame(editors, style="Card.TFrame")
@@ -633,6 +642,9 @@ class App:
         style.configure("Tagline.TLabel", background=SURFACE, foreground=TEXT_MUTED, font=self._font())
         style.configure("Timer.TLabel", background=SURFACE, foreground=TEXT, font=self._font(15, "bold"))
         style.configure("Status.TLabel", background=BG, foreground=TEXT, font=self._font(1), padding=(10, 3))
+        style.configure("StatusBar.TFrame", background=SURFACE)
+        style.configure("StatusBarHint.TLabel", background=SURFACE, foreground=TEXT_MUTED, font=self._font(-1))
+        style.configure("StatusTimer.TLabel", background=SURFACE, foreground=TEXT, font=self._font(6, "bold"))
 
         style.configure(
             "TButton",
@@ -669,6 +681,23 @@ class App:
                 foreground=[("disabled", DISABLED_FG)],
                 bordercolor=[("disabled", DISABLED_BG)],
             )
+        style.configure(
+            "Ghost.TButton",
+            background=SURFACE,
+            foreground=TEXT_MUTED,
+            bordercolor=SURFACE,
+            borderwidth=0,
+            relief="flat",
+            focuscolor=SURFACE,
+            padding=(6, 4),
+            font=self._font(2),
+        )
+        style.map(
+            "Ghost.TButton",
+            background=[("pressed", SURFACE_2), ("active", ACCENT_SOFT), ("disabled", SURFACE)],
+            foreground=[("active", ACCENT_DARK), ("disabled", DISABLED_FG)],
+            bordercolor=[("active", SURFACE_2)],
+        )
         # Numbered workflow buttons: accent-tinted so they read as the main path.
         style.configure(
             "Step.TButton",
@@ -774,7 +803,6 @@ class App:
     def _apply_language(self) -> None:
         self.root.title(f"{APP_NAME} — {self._tr('tagline')}")
         self.tagline_label.config(text=f"  {self._tr('tagline')}")
-        self.dark_check.set_text(self._tr("dark"))
         self.input_label.config(text=self._tr("input"))
         self.refresh_button.config(text="↻")
         self._refresh_device_labels()
@@ -785,6 +813,16 @@ class App:
             self._refresh_hq_model_combo()
         if hasattr(self, "cancel_download_button"):
             self.cancel_download_button.configure(text=self._tr("cancel_download"))
+        if hasattr(self, "settings_button"):
+            self._refresh_settings_tooltip()
+        if self._settings_window is not None and self.theme_label_widget is not None:
+            self.theme_label_widget.config(text=self._tr("theme_label"))
+            self.language_label_widget.config(text=self._tr("language_label"))
+            self.dark_label_widget.config(text=self._tr("dark_label"))
+            try:
+                self._settings_window.title(self._tr("settings_title"))
+            except tk.TclError:
+                pass
         self.record_button.config(text=self._tr("stop" if self.is_recording else "record"))
         self.live_check.set_text(self._tr("live"))
         self.export_mp3_button.config(text=self._tr("save_mp3"))
@@ -835,8 +873,12 @@ class App:
             self.status.configure(font=self._font(0, "bold"))
         for widget_name in ("language_combo", "theme_combo", "device_combo", "llm_combo", "hq_model_combo"):
             widget = getattr(self, widget_name, None)
-            if widget is not None:
+            if widget is None:
+                continue
+            try:
                 widget.configure(font=self._font())
+            except tk.TclError:
+                pass
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self.root)
@@ -854,51 +896,29 @@ class App:
 
     def _build_header(self) -> None:
         header = ttk.Frame(self.root, style="Header.TFrame")
-        header.pack(fill="x", padx=10, pady=(10, 0))
+        header.pack(side="top", fill="x", padx=10, pady=(10, 0))
         inner = ttk.Frame(header, style="Header.TFrame")
         inner.pack(fill="x", padx=PAD_X, pady=10)
         inner.columnconfigure(1, weight=1)
         ttk.Label(inner, text=APP_NAME, style="Wordmark.TLabel").grid(row=0, column=0, sticky="w")
         self.tagline_label = ttk.Label(inner, text=f"  {self._tr('tagline')}", style="Tagline.TLabel")
-        self.tagline_label.grid(row=0, column=1, sticky="w", padx=(4, 12), pady=(6, 0))
+        self.tagline_label.grid(row=0, column=1, sticky="w", padx=(4, 12), pady=(2, 0))
+        self.settings_button = ttk.Button(inner, text="⚙", width=3, command=self.open_settings, style="Ghost.TButton")
+        self.settings_button.grid(row=0, column=2, sticky="e", padx=(8, 0))
+        self._settings_tooltip = Tooltip(self.settings_button, self._tr("settings"))
+        inner.bind("<Configure>", lambda event: self.tagline_label.configure(wraplength=max(120, event.width // 2)))
 
-        settings = ttk.Frame(inner, style="Header.TFrame")
-        settings.grid(row=0, column=2, sticky="e", padx=(12, 14), pady=(4, 0))
-        self.theme_combo = ttk.Combobox(
-            settings,
-            state="readonly",
-            width=10,
-            values=list(THEME_LABELS),
-            textvariable=self._theme_var,
-            font=self._font(),
-        )
-        self.theme_combo.pack(side="left", padx=(0, 8))
-        self.theme_combo.bind("<<ComboboxSelected>>", self._on_theme_change)
-        self.language_combo = ttk.Combobox(
-            settings,
-            state="readonly",
-            width=9,
-            values=list(LANGUAGE_CODES),
-            textvariable=self._language_var,
-            font=self._font(),
-        )
-        self.language_combo.pack(side="left", padx=(0, 10))
-        self.language_combo.bind("<<ComboboxSelected>>", self._on_language_change)
-        self.dark_check = Switch(
-            settings,
-            text=self._tr("dark"),
-            variable=self._dark_var,
-            colors=_ui_colors,
-            command=self._on_theme_change,
-            font=self._font(),
-            default_font_size=DEFAULT_FONT_SIZE,
-        )
-        self.dark_check.pack(side="left")
+    def _build_status_bar(self) -> None:
+        bar = ttk.Frame(self.root, style="StatusBar.TFrame")
+        bar.pack(side="bottom", fill="x")
+        self._status_bar_top = tk.Frame(bar, bd=0, height=1, background=BORDER)
+        self._status_bar_top.pack(side="top", fill="x")
+        inner = ttk.Frame(bar, style="StatusBar.TFrame")
+        inner.pack(side="top", fill="x", padx=PAD_X, pady=(6, 10))
+        inner.columnconfigure(2, weight=1)
 
-        self.timer = ttk.Label(inner, text="00:00", style="Timer.TLabel")
-        self.timer.grid(row=0, column=3, sticky="e")
         self.status_banner = tk.Frame(inner, bd=0, highlightthickness=1)
-        self.status_banner.grid(row=1, column=3, sticky="e", pady=(8, 0), ipadx=10, ipady=4)
+        self.status_banner.grid(row=0, column=0, sticky="w", ipadx=8, ipady=3)
         self.status_icon = tk.Label(self.status_banner, text="OK", width=3, anchor="center", font=self._font(-2, "bold"))
         self.status_icon.pack(side="left", padx=(0, 7))
         self.status = tk.Label(self.status_banner, text=self._tr("status_ready"), font=self._font(0, "bold"))
@@ -908,16 +928,108 @@ class App:
             text=self._tr("cancel_download"),
             command=self._cancel_active_download,
         )
+
+        self.meter_caption = ttk.Label(inner, text="", style="StatusBarHint.TLabel")
+        self.meter_caption.grid(row=0, column=1, sticky="w", padx=(12, 8))
+        self.wave = WaveMeter(inner, colors=_ui_colors, height=32)
+        self.wave.grid(row=0, column=2, sticky="ew")
+        self.timer = ttk.Label(inner, text="00:00", style="StatusTimer.TLabel")
+        self.timer.grid(row=0, column=3, sticky="e", padx=(14, 0))
         self._set_status(self._tr("status_ready"), "ready")
 
-        meter = ttk.Frame(inner, style="Header.TFrame")
-        meter.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(12, 0))
-        meter.columnconfigure(1, weight=1)
-        self.meter_caption = ttk.Label(meter, text="", style="Hint.TLabel")
-        self.meter_caption.grid(row=0, column=0, sticky="w", padx=(0, 10))
-        self.wave = WaveMeter(meter, colors=_ui_colors, height=64)
-        self.wave.grid(row=0, column=1, sticky="ew")
-        inner.bind("<Configure>", lambda event: self.tagline_label.configure(wraplength=max(120, event.width // 3)))
+    # ---------- settings dialog ----------
+
+    def open_settings(self) -> None:
+        win = self._settings_window
+        if win is not None:
+            try:
+                win.deiconify()
+                win.lift()
+                win.focus_set()
+                return
+            except tk.TclError:
+                self._settings_window = None
+        self._build_settings_dialog()
+
+    def _build_settings_dialog(self) -> None:
+        win = tk.Toplevel(self.root)
+        self._settings_window = win
+        win.title(self._tr("settings_title"))
+        win.configure(background=BG)
+        win.resizable(False, False)
+        win.transient(self.root)
+        x = self.root.winfo_rootx() + max(40, (self.root.winfo_width() - 360) // 2)
+        y = self.root.winfo_rooty() + 80
+        win.geometry(f"+{x}+{y}")
+
+        body = ttk.Frame(win, style="Card.TFrame")
+        body.pack(side="top", fill="both", expand=True, padx=PAD_X, pady=(PAD_Y, 6))
+        body.columnconfigure(1, weight=1)
+
+        self.theme_label_widget = ttk.Label(body, text=self._tr("theme_label"), style="Card.TLabel")
+        self.theme_label_widget.grid(row=0, column=0, sticky="w", padx=(0, 16), pady=(0, 10))
+        self.theme_combo = ttk.Combobox(
+            body,
+            state="readonly",
+            width=18,
+            values=list(THEME_LABELS),
+            textvariable=self._theme_var,
+            font=self._font(),
+        )
+        self.theme_combo.grid(row=0, column=1, sticky="ew", pady=(0, 10))
+        self.theme_combo.bind("<<ComboboxSelected>>", self._on_theme_change)
+
+        self.language_label_widget = ttk.Label(body, text=self._tr("language_label"), style="Card.TLabel")
+        self.language_label_widget.grid(row=1, column=0, sticky="w", padx=(0, 16), pady=(0, 10))
+        self.language_combo = ttk.Combobox(
+            body,
+            state="readonly",
+            width=18,
+            values=list(LANGUAGE_CODES),
+            textvariable=self._language_var,
+            font=self._font(),
+        )
+        self.language_combo.grid(row=1, column=1, sticky="ew", pady=(0, 10))
+        self.language_combo.bind("<<ComboboxSelected>>", self._on_language_change)
+
+        self.dark_label_widget = ttk.Label(body, text=self._tr("dark_label"), style="Card.TLabel")
+        self.dark_label_widget.grid(row=2, column=0, sticky="w", padx=(0, 16), pady=(0, 4))
+        self.dark_check = Switch(
+            body,
+            text="",
+            variable=self._dark_var,
+            colors=_ui_colors,
+            command=self._on_theme_change,
+            font=self._font(),
+            default_font_size=DEFAULT_FONT_SIZE,
+        )
+        self.dark_check.grid(row=2, column=1, sticky="w")
+
+        footer = ttk.Frame(win, style="Card.TFrame")
+        footer.pack(side="bottom", fill="x", padx=PAD_X, pady=(6, PAD_Y))
+        ttk.Button(footer, text=self._tr("close"), command=self._close_settings).pack(side="right")
+
+        win.protocol("WM_DELETE_WINDOW", self._close_settings)
+        win.bind("<Escape>", lambda _e: self._close_settings())
+
+    def _close_settings(self) -> None:
+        win = self._settings_window
+        self._settings_window = None
+        self.theme_combo = None
+        self.language_combo = None
+        self.dark_check = None
+        self.theme_label_widget = None
+        self.language_label_widget = None
+        self.dark_label_widget = None
+        if win is not None:
+            try:
+                win.destroy()
+            except tk.TclError:
+                pass
+
+    def _refresh_settings_tooltip(self) -> None:
+        if self._settings_tooltip is not None:
+            self._settings_tooltip.text = self._tr("settings")
 
     # ---------- main layout ----------
 
@@ -1167,6 +1279,8 @@ class App:
             self.root.bind(seq, lambda _e: self._shortcut_export())
         for seq in ("<Command-o>", "<Control-o>"):
             self.root.bind(seq, lambda _e: self.open_audio())
+        for seq in ("<Command-comma>", "<Control-comma>"):
+            self.root.bind(seq, lambda _e: self.open_settings())
         for seq in ("<Control-plus>", "<Control-equal>", "<Control-KP_Add>", "<Command-plus>", "<Command-equal>"):
             self.root.bind_all(seq, self._increase_font_size, add="+")
         for seq in ("<Control-minus>", "<Control-KP_Subtract>", "<Command-minus>"):

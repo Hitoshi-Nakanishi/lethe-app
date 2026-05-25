@@ -154,6 +154,11 @@ UI_TEXT = {
         "session_open_failed": "セッションを開けませんでした",
         "session_save_failed": "セッションの保存に失敗しました",
         "dataset_save_failed": "データセットの書き出しに失敗しました",
+        "settings": "設定",
+        "settings_title": "設定",
+        "theme_label": "テーマ",
+        "language_label": "言語",
+        "dark_label": "ダークモード",
     },
     "en": {
         "tagline": "Recorder, transcription, minutes",
@@ -253,6 +258,11 @@ UI_TEXT = {
         "session_open_failed": "Could not open session",
         "session_save_failed": "Could not save session",
         "dataset_save_failed": "Could not export dataset",
+        "settings": "Settings",
+        "settings_title": "Settings",
+        "theme_label": "Theme",
+        "language_label": "Language",
+        "dark_label": "Dark mode",
     },
 }
 
