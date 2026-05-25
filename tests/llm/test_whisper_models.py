@@ -72,6 +72,34 @@ def test_streaming_transcriber_retries_chunk_on_cpu_fallback(monkeypatch):
     assert seen == ["fallback text"]
 
 
+def test_download_model_cancellation_raises(monkeypatch):
+    from huggingface_hub import snapshot_download as _real_snapshot_download
+
+    def fake_snapshot_download(*, tqdm_class, **_kwargs):
+        # Simulate huggingface_hub's tqdm-driven loop: instantiate a progress
+        # bar and tick it. cancel_download() flips the event, so the next
+        # update() must raise ModelDownloadCancelled instead of running to
+        # completion.
+        bar = tqdm_class(total=10)
+        whisper_models.cancel_download("fake-model")
+        try:
+            bar.update(1)
+        finally:
+            bar.close()
+
+    import huggingface_hub
+
+    monkeypatch.setattr(whisper_models, "is_model_cached", lambda _model_size: False)
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", fake_snapshot_download)
+
+    with pytest.raises(whisper_models.ModelDownloadCancelled):
+        whisper_models.download_model("fake-model")
+    # Cancellation event should be cleared so a retry can begin fresh.
+    assert "fake-model" not in whisper_models._cancel_events
+    # Sanity that the real symbol was patched, not just a different attribute.
+    assert _real_snapshot_download is not None
+
+
 def test_final_transcribe_retries_on_cpu_fallback(monkeypatch):
     class BrokenModel:
         def transcribe(self, _audio, **_kwargs):

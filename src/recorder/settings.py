@@ -60,6 +60,7 @@ DEFAULTS: dict = {
     "live": True,
     "geometry": "",
     "llm_model": "",
+    "hq_model": "",
     "theme": "midnight",
     "dark_mode": True,
     "language": "en",

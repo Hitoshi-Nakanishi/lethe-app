@@ -27,7 +27,17 @@ TOOLTIP_NR = "録音音声から定常ノイズ（ファン・空調音など）
 TOOLTIP_OPEN = "既存の音声ファイル(mp3/m4a/wav 等)を開き、「① 高精度で文字起こし」と同じ処理を実行します。"
 TOOLTIP_MP3 = "録音した音声を MP3 ファイルとして保存します。"
 TOOLTIP_HQ = (
-    "録音または開いた音声の全体を Whisper large-v3 で文字起こしします。ライブ転写より時間はかかりますが、より正確です。"
+    "録音または開いた音声の全体を選択中の Whisper モデルで文字起こしします。ライブ転写より時間はかかりますが、より正確です。"
+)
+TOOLTIP_HQ_MODEL = (
+    "「① 高精度で文字起こし」で使うモデル。\n"
+    "✓ はダウンロード済み、⬇ は初回利用時にダウンロードが必要です。\n"
+    "リストの各モデルは [サイズ / 必要RAM / 品質 / 速度] の目安付きで表示されます。"
+)
+TOOLTIP_HQ_MODEL_EN = (
+    "Whisper model used by '① Transcribe'.\n"
+    "✓ already downloaded, ⬇ will download on first use.\n"
+    "Each entry shows [disk / RAM / quality / speed] estimates."
 )
 TOOLTIP_REFINE = (
     "右の「メモ」に書いた固有名詞・専門用語を正しい表記とみなし、"
@@ -90,10 +100,23 @@ UI_TEXT = {
         "transcribe_progress": "文字起こし進捗",
         "transcribe_progress_pct": "文字起こし進捗 · {pct}%",
         "hq_running": "高精度で文字起こし中（{model}）{what}...",
-        "hq_download": "初回モデルをダウンロード中（数分かかります）...",
+        "hq_download": "モデル {model} をダウンロード中（数分かかります）...",
+        "hq_download_cancelled": "ダウンロードを停止しました（{model}）",
         "hq_done": "高精度文字起こし完了（{model}）",
         "hq_empty": "文字起こし結果が空でした",
         "hq_failed": "文字起こしに失敗しました",
+        "hq_model_label": "高精度モデル",
+        "hq_model_status_ready": "✓ ダウンロード済み",
+        "hq_model_status_needs_download": "⬇ 初回ダウンロードあり（約 {size}）",
+        "hq_model_combo_entry_cached": "✓ {label}  [{size} / RAM {ram} / 品質 {quality} / 速度 {speed}]",
+        "hq_model_combo_entry_uncached": "⬇ {label}  [{size} / RAM {ram} / 品質 {quality} / 速度 {speed}]",
+        "cancel_download": "停止",
+        "hq_download_confirm_title": "モデルのダウンロード",
+        "hq_download_confirm_message": (
+            "モデル {model} はまだダウンロードされていません。\n"
+            "ダウンロードサイズ: 約 {size}（実行時 RAM 約 {ram}）。\n\n"
+            "今ダウンロードを開始しますか？"
+        ),
         "refining": "校正中...",
         "refine_running": "Ollama で校正中（{model}）...",
         "refine_done": "校正完了",
@@ -178,10 +201,21 @@ UI_TEXT = {
         "transcribe_progress": "Transcription progress",
         "transcribe_progress_pct": "Transcription progress · {pct}%",
         "hq_running": "High-quality transcription ({model}){what}...",
-        "hq_download": "Downloading the model for first use...",
+        "hq_download": "Downloading model {model} (may take several minutes)...",
+        "hq_download_cancelled": "Download cancelled ({model})",
         "hq_done": "High-quality transcription complete ({model})",
         "hq_empty": "The transcription result was empty",
         "hq_failed": "Transcription failed",
+        "hq_model_label": "HQ model",
+        "hq_model_status_ready": "✓ Downloaded",
+        "hq_model_status_needs_download": "⬇ First-use download ({size})",
+        "hq_model_combo_entry_cached": "✓ {label}  [{size} / RAM {ram} / quality {quality} / speed {speed}]",
+        "hq_model_combo_entry_uncached": "⬇ {label}  [{size} / RAM {ram} / quality {quality} / speed {speed}]",
+        "cancel_download": "Cancel",
+        "hq_download_confirm_title": "Download model",
+        "hq_download_confirm_message": (
+            "Model {model} has not been downloaded yet.\nDownload size: {size} (working RAM {ram}).\n\nStart the download now?"
+        ),
         "refining": "Correcting...",
         "refine_running": "Correcting with Ollama ({model})...",
         "refine_done": "Correction complete",

@@ -114,6 +114,48 @@ def test_connection_error_detection():
     assert not _is_connection_error(ValueError("bad transcript"))
 
 
+def test_list_input_devices_dedupes_by_name_and_channels(monkeypatch):
+    fake_devices = [
+        {"name": "Built-in Microphone", "max_input_channels": 1},
+        {"name": "Built-in Microphone", "max_input_channels": 1},  # duplicate via second host API
+        {"name": "External Mic", "max_input_channels": 2},
+        {"name": "Headphones", "max_input_channels": 0},  # output-only, skipped
+        {"name": "External Mic", "max_input_channels": 2},  # duplicate via second host API
+        {"name": "External Mic", "max_input_channels": 1},  # different channel count, kept
+    ]
+
+    class FakeSd:
+        @staticmethod
+        def query_devices():
+            return fake_devices
+
+    import sys
+
+    monkeypatch.setitem(sys.modules, "sounddevice", FakeSd)
+    devices = lethe.list_input_devices()
+    labels = [label for label, _idx in devices]
+    assert labels[0] == "システム既定"
+    assert labels[1:] == [
+        "Built-in Microphone (1ch)",
+        "External Mic (2ch)",
+        "External Mic (1ch)",
+    ]
+
+
+def test_whisper_model_catalog_exposes_metadata():
+    from llm.whisper_models import MODEL_CATALOG, model_info
+
+    ids = {entry["id"] for entry in MODEL_CATALOG}
+    assert {"tiny", "medium", "large-v3"} <= ids
+    large = model_info("large-v3")
+    assert large is not None
+    assert large["disk_gb"] >= 2.5
+    assert large["ram_gb"] >= large["disk_gb"]
+    assert 1 <= large["quality"] <= 5
+    assert 1 <= large["speed"] <= 5
+    assert model_info("not-a-real-model") is None
+
+
 def test_describe_error_ollama_gives_guidance():
     msg = describe_error(ConnectionRefusedError("refused"), ollama=True)
     assert "ollama serve" in msg

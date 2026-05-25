@@ -51,6 +51,8 @@ from recorder.i18n import (
     MIC_HELP,
     TOOLTIP_EXPORT_TXT,
     TOOLTIP_HQ,
+    TOOLTIP_HQ_MODEL,
+    TOOLTIP_HQ_MODEL_EN,
     TOOLTIP_LIVE,
     TOOLTIP_MIC_CAPTURE,
     TOOLTIP_MINUTES,
@@ -286,12 +288,33 @@ def _dataset_manifest(dataset_id: str, duration_seconds: float) -> dict:
 
 def hq_model_cached(model_id: str = HQ_MODEL) -> bool:
     """True if the HQ model already sits in the Hugging Face cache on disk."""
-    folder = "models--" + model_id.replace("/", "--")
-    return (Path.home() / ".cache" / "huggingface" / "hub" / folder).exists()
+    from llm.whisper_models import is_model_cached
+
+    return is_model_cached(model_id)
+
+
+def _format_gb(value: float) -> str:
+    if value < 1.0:
+        return f"{int(round(value * 1024))} MB"
+    if value < 10:
+        return f"{value:.1f} GB"
+    return f"{int(round(value))} GB"
+
+
+def _rating_bar(value: int, maximum: int = 5) -> str:
+    value = max(0, min(value, maximum))
+    return "●" * value + "○" * (maximum - value)
 
 
 def list_input_devices() -> list[tuple[str, int | None]]:
-    """Return [(label, device_index), ...] for the system default + every input device."""
+    """Return [(label, device_index), ...] for the system default + every input device.
+
+    sounddevice can surface the same physical mic multiple times when more than
+    one host API is active (Core Audio + AVAudio on macOS, WDM + WASAPI on
+    Windows). Dedupe by ``(name, channel count)`` so each mic appears once;
+    prefer the first occurrence's index because earlier entries usually map to
+    the OS's preferred backend.
+    """
     import sounddevice as sd
 
     out: list[tuple[str, int | None]] = [("システム既定", None)]
@@ -299,9 +322,17 @@ def list_input_devices() -> list[tuple[str, int | None]]:
         devices = sd.query_devices()
     except Exception:
         return out
+    seen: set[tuple[str, int]] = set()
     for i, dev in enumerate(devices):
-        if dev.get("max_input_channels", 0) > 0:
-            out.append((f"{dev['name']} ({dev['max_input_channels']}ch)", i))
+        channels = int(dev.get("max_input_channels", 0) or 0)
+        if channels <= 0:
+            continue
+        name = str(dev.get("name", "")).strip()
+        key = (name.casefold(), channels)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append((f"{name} ({channels}ch)", i))
     return out
 
 
@@ -534,6 +565,13 @@ class App:
             self._llm_models.insert(0, default_llm)
         self._llm_model_var = tk.StringVar(value=default_llm)
         self._ollama_url = settings_store.model_config()["ollama_url"]
+        saved_hq = str(self._settings.get("hq_model") or "").strip()
+        self._hq_model = saved_hq or HQ_MODEL
+        self._hq_model_var = tk.StringVar(value=self._hq_model)
+        self._hq_combo_values: list[str] = []
+        self._hq_combo_ids: list[str] = []
+        self._downloading_model: str | None = None
+        self._hq_should_run_after_download = False
         self._theme_var = tk.StringVar(value=THEMES.get(self._settings.get("theme"), THEMES["midnight"])["label"])
         self._dark_var = tk.BooleanVar(value=bool(self._settings.get("dark_mode")))
         saved_language = str(self._settings.get("language") or "ja")
@@ -742,6 +780,11 @@ class App:
         self._refresh_device_labels()
         self.mic_label.config(text=self._tr("mic_capture"))
         self.nr_label.config(text=self._tr("noise_reduce"))
+        if hasattr(self, "hq_model_label"):
+            self.hq_model_label.config(text=self._tr("hq_model_label"))
+            self._refresh_hq_model_combo()
+        if hasattr(self, "cancel_download_button"):
+            self.cancel_download_button.configure(text=self._tr("cancel_download"))
         self.record_button.config(text=self._tr("stop" if self.is_recording else "record"))
         self.live_check.set_text(self._tr("live"))
         self.export_mp3_button.config(text=self._tr("save_mp3"))
@@ -790,7 +833,7 @@ class App:
             self.status_icon.configure(font=self._font(-2, "bold"))
         if hasattr(self, "status"):
             self.status.configure(font=self._font(0, "bold"))
-        for widget_name in ("language_combo", "theme_combo", "device_combo", "llm_combo"):
+        for widget_name in ("language_combo", "theme_combo", "device_combo", "llm_combo", "hq_model_combo"):
             widget = getattr(self, widget_name, None)
             if widget is not None:
                 widget.configure(font=self._font())
@@ -860,6 +903,11 @@ class App:
         self.status_icon.pack(side="left", padx=(0, 7))
         self.status = tk.Label(self.status_banner, text=self._tr("status_ready"), font=self._font(0, "bold"))
         self.status.pack(side="left")
+        self.cancel_download_button = ttk.Button(
+            self.status_banner,
+            text=self._tr("cancel_download"),
+            command=self._cancel_active_download,
+        )
         self._set_status(self._tr("status_ready"), "ready")
 
         meter = ttk.Frame(inner, style="Header.TFrame")
@@ -928,8 +976,24 @@ class App:
         self.nr_check.grid(row=3, column=1, sticky="w", padx=(8, 12))
         Tooltip(self.nr_check, TOOLTIP_NR)
 
+        self.hq_model_label = ttk.Label(source, text=self._tr("hq_model_label"), style="Card.TLabel")
+        self.hq_model_label.grid(row=4, column=0, sticky="w", pady=(8, 2))
+        self.hq_model_combo = ttk.Combobox(
+            source,
+            state="readonly",
+            width=19,
+            textvariable=self._hq_model_var,
+            font=self._font(),
+        )
+        self.hq_model_combo.grid(row=4, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(8, 2))
+        self.hq_model_combo.bind("<<ComboboxSelected>>", self._on_hq_model_change)
+        self._hq_model_tooltip = Tooltip(self.hq_model_combo, TOOLTIP_HQ_MODEL)
+        self.hq_model_status = ttk.Label(source, text="", style="Hint.TLabel")
+        self.hq_model_status.grid(row=5, column=0, columnspan=3, sticky="w", padx=(0, 0), pady=(0, 4))
+        self._refresh_hq_model_combo()
+
         playback = ttk.Frame(source, style="Card.TFrame")
-        playback.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(14, 0))
+        playback.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(14, 0))
         playback.columnconfigure(2, weight=1)
         self.play_button = ttk.Button(playback, text=self._tr("play"), width=12, command=self.toggle_play, state="disabled")
         self.play_button.grid(row=0, column=0, sticky="ew", padx=(0, 4), pady=(0, 4))
@@ -1248,6 +1312,79 @@ class App:
 
         return run
 
+    # ---------- HQ model selection ----------
+
+    def _refresh_hq_model_combo(self) -> None:
+        """Rebuild the HQ model dropdown with cache status + size/RAM/quality."""
+        from llm.whisper_models import MODEL_CATALOG, is_model_cached
+
+        catalog = list(MODEL_CATALOG)
+        if not any(entry["id"] == self._hq_model for entry in catalog):
+            # Keep an unrecognized configured value visible without specs.
+            catalog.append(
+                {
+                    "id": self._hq_model,
+                    "label": self._hq_model,
+                    "disk_gb": 0.0,
+                    "ram_gb": 0.0,
+                    "quality": 0,
+                    "speed": 0,
+                    "note": "",
+                    "note_en": "",
+                }
+            )
+        values: list[str] = []
+        ids: list[str] = []
+        for entry in catalog:
+            cached = is_model_cached(entry["id"])
+            key = "hq_model_combo_entry_cached" if cached else "hq_model_combo_entry_uncached"
+            values.append(
+                self._tr(
+                    key,
+                    label=entry["label"],
+                    size=_format_gb(entry["disk_gb"]) if entry["disk_gb"] else "?",
+                    ram=_format_gb(entry["ram_gb"]) if entry["ram_gb"] else "?",
+                    quality=_rating_bar(entry["quality"]),
+                    speed=_rating_bar(entry["speed"]),
+                )
+            )
+            ids.append(entry["id"])
+        self._hq_combo_values = values
+        self._hq_combo_ids = ids
+        self.hq_model_combo["values"] = values
+        try:
+            idx = ids.index(self._hq_model)
+        except ValueError:
+            idx = 0
+            self._hq_model = ids[0] if ids else self._hq_model
+        self.hq_model_combo.current(idx)
+        self._update_hq_model_status()
+        tooltip_text = TOOLTIP_HQ_MODEL if self._language_code() == "ja" else TOOLTIP_HQ_MODEL_EN
+        try:
+            self._hq_model_tooltip.text = tooltip_text
+        except AttributeError:
+            pass
+
+    def _update_hq_model_status(self) -> None:
+        if not hasattr(self, "hq_model_status"):
+            return
+        from llm.whisper_models import is_model_cached, model_info
+
+        info = model_info(self._hq_model)
+        if is_model_cached(self._hq_model):
+            text = self._tr("hq_model_status_ready")
+        elif info and info["disk_gb"]:
+            text = self._tr("hq_model_status_needs_download", size=_format_gb(info["disk_gb"]))
+        else:
+            text = self._tr("hq_model_status_needs_download", size="?")
+        self.hq_model_status.config(text=text)
+
+    def _on_hq_model_change(self, _event=None) -> None:
+        idx = self.hq_model_combo.current()
+        if 0 <= idx < len(self._hq_combo_ids):
+            self._hq_model = self._hq_combo_ids[idx]
+        self._update_hq_model_status()
+
     # ---------- input device ----------
 
     def refresh_devices(self) -> None:
@@ -1491,29 +1628,60 @@ class App:
     def _run_hq(self, audio_path: Path | None, label: str | None = None, load_playback: bool = False) -> None:
         if audio_path is None:
             return
+        from llm.whisper_models import is_model_cached, model_info
+
+        model_size = self._hq_model
+        if not is_model_cached(model_size):
+            info = model_info(model_size)
+            size_text = _format_gb(info["disk_gb"]) if info and info["disk_gb"] else "?"
+            ram_text = _format_gb(info["ram_gb"]) if info and info["ram_gb"] else "?"
+            confirm = messagebox.askyesno(
+                self._tr("hq_download_confirm_title"),
+                self._tr("hq_download_confirm_message", model=model_size, size=size_text, ram=ram_text),
+            )
+            if not confirm:
+                return
+            needs_download = True
+        else:
+            needs_download = False
+
         notes = self._notes_cache
         preprocessor = self._build_preprocessor() if self._nr_var.get() else None
         self._busy = True
+        self._active_hq_model = model_size
         self.hq_button.config(state="disabled", text=self._tr("transcribing"))
         self.open_button.config(state="disabled")
         self._set_transcript_actions(False)
         what = f" · {label}" if label else ""
-        if hq_model_cached():
-            self._set_status(self._tr("hq_running", model=HQ_MODEL_LABEL, what=what), "busy")
+        if needs_download:
+            self._downloading_model = model_size
+            self._set_status(self._tr("hq_download", model=model_size), "download")
+            self._show_cancel_button(True)
         else:
-            self._set_status(self._tr("hq_download"), "download")
+            self._set_status(self._tr("hq_running", model=model_size, what=what), "busy")
         self.meter_caption.config(text=self._tr("transcribe_progress"))
         self.wave.set_mode("analysis")
         self.wave.set_progress(0)
 
+        run_status_text = self._tr("hq_running", model=model_size, what=what)
+
         def worker() -> None:
+            from llm.whisper_models import ModelDownloadCancelled, download_model
+
             try:
+                if needs_download:
+                    try:
+                        download_model(model_size)
+                    except ModelDownloadCancelled:
+                        self._hq_queue.put(("cancelled", model_size))
+                        return
+                    self._hq_queue.put(("download_complete", run_status_text))
                 from llm.transcribe_final import segments_to_text, transcribe_segments
 
                 segments = transcribe_segments(
                     audio_path,
                     SAMPLE_RATE,
-                    model_size=HQ_MODEL,
+                    model_size=model_size,
                     language=WHISPER_LANGUAGE,
                     initial_prompt=notes or None,
                     preprocessor=preprocessor,
@@ -1528,6 +1696,26 @@ class App:
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _show_cancel_button(self, visible: bool) -> None:
+        """Pack/unpack the inline Cancel button inside the status banner."""
+        if not hasattr(self, "cancel_download_button"):
+            return
+        if visible:
+            self.cancel_download_button.configure(text=self._tr("cancel_download"))
+            self.cancel_download_button.pack(side="left", padx=(10, 0))
+        else:
+            self.cancel_download_button.pack_forget()
+
+    def _cancel_active_download(self) -> None:
+        """User clicked Cancel during a first-time model download."""
+        model = self._downloading_model
+        if not model:
+            return
+        from llm.whisper_models import cancel_download
+
+        cancel_download(model)
+        self.cancel_download_button.configure(state="disabled")
+
     def _load_playback_file(self, audio_path: Path) -> None:
         """Decode an opened file to 16 kHz mono so the player can use it."""
         try:
@@ -1539,7 +1727,25 @@ class App:
             pass  # playback is a nicety; transcription already succeeded
 
     def _apply_hq_result(self, kind: str, payload: str) -> None:
+        if kind == "download_complete":
+            # First stage finished; transition the banner from download to busy.
+            self._set_status(payload, "busy")
+            self._show_cancel_button(False)
+            self._downloading_model = None
+            try:
+                self.cancel_download_button.configure(state="normal")
+            except Exception:
+                pass
+            self._refresh_hq_model_combo()
+            return
         self._busy = False
+        self._show_cancel_button(False)
+        try:
+            self.cancel_download_button.configure(state="normal")
+        except Exception:
+            pass
+        self._downloading_model = None
+        active_model = getattr(self, "_active_hq_model", self._hq_model)
         self.hq_button.config(text=self._tr("hq"))
         self.meter_caption.config(text="")
         self.wave.set_mode("idle")
@@ -1551,12 +1757,15 @@ class App:
         if kind == "ok":
             if payload.strip():
                 self._replace_transcript(payload)
-                self._set_status(self._tr("hq_done", model=HQ_MODEL_LABEL), "ok")
+                self._set_status(self._tr("hq_done", model=active_model), "ok")
             else:
                 self._set_status(self._tr("hq_empty"), "busy")
+        elif kind == "cancelled":
+            self._set_status(self._tr("hq_download_cancelled", model=payload or active_model), "ready")
         elif kind == "error":
             self._set_status(self._tr("hq_failed"), "recording")
             messagebox.showerror(self._tr("hq_failed"), payload)
+        self._refresh_hq_model_combo()
         self._sync_transcript_actions()
 
     # ---------- refine ----------
@@ -1938,6 +2147,7 @@ class App:
                 "noise_reduce": bool(self._nr_var.get()),
                 "live": bool(self._live_var.get()),
                 "llm_model": self._selected_llm_model(),
+                "hq_model": self._hq_model,
                 "theme": self._theme_key(),
                 "dark_mode": bool(self._dark_var.get()),
                 "language": self._language_code(),
