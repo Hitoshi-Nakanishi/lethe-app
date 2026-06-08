@@ -26,8 +26,8 @@ List configured models and pre-download the configured set: Whisper `medium`,
 `large-v3`; Ollama `llama3.1:8b`, `qwen2.5:7b`, `mistral:7b`.
 
 ```sh
-task model-list
-task download-models
+task models
+task models -- download
 ```
 
 uv を使う場合:

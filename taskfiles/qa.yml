@@ -2,7 +2,6 @@ version: '3'
 
 tasks:
   default:
-    desc: Run Ruff formatting, Ruff checks, ty checks, and pytest
     cmds:
       - task: format
       - task: check
@@ -10,31 +9,25 @@ tasks:
       - task: test
 
   format:
-    desc: Run Ruff formatter
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync ruff format .
 
   check:
-    desc: Run Ruff lint checks
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync ruff check .
 
   fix:
-    desc: Run Ruff lint fixes
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync ruff check . --fix
 
   sort-imports:
-    desc: Sort imports with Ruff
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync ruff check --select I --fix .
 
   typecheck:
-    desc: Run ty type checks
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync ty check
 
   test:
-    desc: Run pytest
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync pytest -q

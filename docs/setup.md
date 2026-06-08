@@ -26,14 +26,13 @@ List configured models and pre-download the configured set: Whisper `medium`,
 `large-v3`; Ollama `llama3.1:8b`, `qwen2.5:7b`, `mistral:7b`.
 
 ```sh
-task model-list
-task download-models
+task models
+task models -- download
 ```
 
 For only Ollama LLM models, use the shorter LLM tasks:
 
 ```sh
-task llm-list
 task llm
 task llm -- llama3.1:8b qwen2.5:7b
 ```
@@ -116,7 +115,7 @@ Ollama service running on the host, copy [.env.example](../.env.example) to
 ## Optional Ollama Setup
 
 Install Ollama, start the service, and pull a model that is not already covered
-by `task download-models`:
+by `task models -- download`:
 
 ```sh
 ollama serve

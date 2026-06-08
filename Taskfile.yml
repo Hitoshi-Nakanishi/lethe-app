@@ -11,33 +11,29 @@ tasks:
   default:
     desc: Run formatting, linting, type checks, and tests
     summary: |
-      Root entrypoint for the standard repository checks.
-      The implementation lives under qa:default so the root Taskfile stays small.
+      Standard repository check:
+        task
+        task default
     cmds:
       - task: qa:default
 
   format:
-    desc: Format Python files with Ruff
     cmds:
       - task: qa:format
 
   check:
-    desc: Run Ruff lint checks
     cmds:
       - task: qa:check
 
   fix:
-    desc: Run Ruff lint fixes
     cmds:
       - task: qa:fix
 
   typecheck:
-    desc: Run ty type checks
     cmds:
       - task: qa:typecheck
 
   test:
-    desc: Run the Python test suite
     cmds:
       - task: qa:test
 
@@ -47,14 +43,23 @@ tasks:
       - task: app:run
 
   model-list:
-    desc: List configured Whisper and Ollama models (medium, large-v3, llama3.1:8b, qwen2.5:7b, mistral:7b)
     cmds:
       - task: app:model-list
 
   llm-list:
-    desc: List configured Ollama LLM models
     cmds:
       - task: app:llm-list
+
+  models:
+    desc: List/download Whisper and Ollama models
+    summary: |
+      Usage:
+        task models
+        task models -- download
+        task models -- whisper medium large-v3
+        task models -- llm llama3.1:8b qwen2.5:7b
+    cmds:
+      - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/model_tasks.py {{.CLI_ARGS}}
 
   llm:
     desc: Download configured Ollama LLM models, or named models passed after --
@@ -66,22 +71,18 @@ tasks:
       - task: app:llm
 
   download-models:
-    desc: Download configured Whisper and Ollama models (medium, large-v3, llama3.1:8b, qwen2.5:7b, mistral:7b)
     cmds:
       - task: app:download-models
 
   download-llm-models:
-    desc: Download configured Ollama LLM models
     cmds:
       - task: app:llm
 
   download-whisper-models:
-    desc: Download configured Whisper speech models (medium, large-v3)
     cmds:
       - task: app:download-whisper-models
 
   download-llm-model:
-    desc: Download configured Ollama LLM models, or named models passed after --
     summary: |
       Usage:
         task download-llm-model
@@ -95,15 +96,13 @@ tasks:
       - task: sync
 
   sync:
-    desc: Sync the uv project environment
     cmds:
       - python src/scripts/uv_bootstrap.py sync --dev
 
   list:
     desc: Show public task commands
     summary: |
-      Public tasks are grouped by namespace:
-      - qa:
-      - app:
+      Shows the small public command set. Older compatibility tasks and
+      namespaced implementation tasks are intentionally hidden from the list.
     cmds:
       - task --list
