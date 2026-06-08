@@ -35,17 +35,19 @@ def print_model_list() -> None:
 
 def download_all_models() -> int:
     """Download configured Whisper speech models and Ollama LLM models."""
+    print("Downloading Whisper speech models...")
     rc = download_models.main([])
     if rc != 0:
         return rc
+    print("Downloading Ollama LLM models...")
     return ollama_models.download_llm_models()
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="List or download Lethe models.")
     subparsers = parser.add_subparsers(dest="command")
-    subparsers.add_parser("list", help="List configured Whisper and Ollama models.")
-    subparsers.add_parser("download", help="Download configured Whisper and Ollama models.")
+    subparsers.add_parser("list", help="List configured Whisper and Ollama LLM models.")
+    subparsers.add_parser("download", help="Download configured Whisper and Ollama LLM models.")
     whisper = subparsers.add_parser("whisper", help="Download configured Whisper models, or the model names passed after it.")
     whisper.add_argument("models", nargs="*", help="Optional Whisper model names, for example medium large-v3.")
     llm = subparsers.add_parser("llm", help="Download configured Ollama LLM models, or the model names passed after it.")

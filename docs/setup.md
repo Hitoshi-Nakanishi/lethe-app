@@ -22,19 +22,34 @@ task run
 
 `task setup` bootstraps uv when it is not available on PATH.
 
-List configured models and pre-download the configured set: Whisper `medium`,
-`large-v3`; Ollama `llama3.1:8b`, `qwen2.5:7b`, `mistral:7b`.
+Before downloading models:
+
+- Run `task setup` so the Python/uv environment exists.
+- For LLM model downloads, install Ollama and start it with `ollama serve`.
+
+List the configured models:
 
 ```sh
-task models
-task models -- download
+task model-list
 ```
 
-For only Ollama LLM models, use the shorter LLM tasks:
+Download both model groups:
 
 ```sh
-task llm
-task llm -- llama3.1:8b qwen2.5:7b
+task download-models
+```
+
+`task download-models` downloads both:
+
+- Whisper speech models for transcription: `medium`, `large-v3`
+- Ollama LLM models for correction/minutes: `llama3.1:8b`, `qwen2.5:7b`,
+  `mistral:7b`
+
+To download only one group:
+
+```sh
+task download-whisper-models
+task download-llm-models
 ```
 
 Using uv:
@@ -115,11 +130,11 @@ Ollama service running on the host, copy [.env.example](../.env.example) to
 ## Optional Ollama Setup
 
 Install Ollama, start the service, and pull a model that is not already covered
-by `task models -- download`:
+by `task download-models`:
 
 ```sh
 ollama serve
-task llm -- llama3.1:8b
+task download-llm-model -- llama3.1:8b
 ```
 
 Lethe can record and transcribe without Ollama. Correction and minutes
