@@ -44,7 +44,7 @@ task download-models
 To download one extra Ollama model by name:
 
 ```sh
-task download-llm-model -- llama3.1:8b
+task llm -- llama3.1:8b
 ```
 
 ## 主な機能
