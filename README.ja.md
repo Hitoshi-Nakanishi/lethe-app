@@ -37,8 +37,8 @@ List configured models and pre-download the configured set: Whisper `medium`,
 `large-v3`; Ollama `llama3.1:8b`, `qwen2.5:7b`, `mistral:7b`.
 
 ```sh
-task model-list
-task download-models
+task models
+task models -- download
 ```
 
 To download one extra Ollama model by name:
@@ -66,14 +66,11 @@ task llm -- llama3.1:8b
 
 ## For Developers
 
-変更を送る前に `task default` を実行します。これは `task format`、
-`task check`、`task typecheck`、`task test` をまとめて実行します。
+変更を送る前に `task default` を実行します。これは整形、lint、
+型チェック、テストをまとめて実行します。
 
 ```sh
-task format
-task check
-task typecheck
-task test
+task default
 ```
 
 ## 名前について

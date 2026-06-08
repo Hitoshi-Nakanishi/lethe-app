@@ -38,21 +38,29 @@ def download_all_models() -> int:
     rc = download_models.main([])
     if rc != 0:
         return rc
-    return ollama_models.download_configured_llm_models()
+    return ollama_models.download_llm_models()
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="List or download all configured Lethe models.")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    parser = argparse.ArgumentParser(description="List or download Lethe models.")
+    subparsers = parser.add_subparsers(dest="command")
     subparsers.add_parser("list", help="List configured Whisper and Ollama models.")
     subparsers.add_parser("download", help="Download configured Whisper and Ollama models.")
+    whisper = subparsers.add_parser("whisper", help="Download configured Whisper models, or the model names passed after it.")
+    whisper.add_argument("models", nargs="*", help="Optional Whisper model names, for example medium large-v3.")
+    llm = subparsers.add_parser("llm", help="Download configured Ollama LLM models, or the model names passed after it.")
+    llm.add_argument("models", nargs="*", help="Optional Ollama model names, for example llama3.1:8b qwen2.5:7b.")
 
     args = parser.parse_args(argv)
-    if args.command == "list":
+    if args.command in {None, "list"}:
         print_model_list()
         return 0
     if args.command == "download":
         return download_all_models()
+    if args.command == "whisper":
+        return download_models.main(args.models)
+    if args.command == "llm":
+        return ollama_models.download_llm_models(args.models or None)
     return 1
 
 

@@ -50,14 +50,13 @@ Whisper `medium`, `large-v3`; Ollama `llama3.1:8b`, `qwen2.5:7b`,
 `mistral:7b`.
 
 ```sh
-task model-list
-task download-models
+task models
+task models -- download
 ```
 
 For only Ollama LLM models:
 
 ```sh
-task llm-list
 task llm
 task llm -- llama3.1:8b qwen2.5:7b
 ```
@@ -84,14 +83,11 @@ task llm -- llama3.1:8b qwen2.5:7b
 
 ## For Developers
 
-Use `task default` before sending changes. It runs `task format`,
-`task check`, `task typecheck`, and `task test`.
+Use `task default` before sending changes. It runs formatting, linting, type
+checks, and tests.
 
 ```sh
-task format
-task check
-task typecheck
-task test
+task default
 ```
 
 ## Name
