@@ -6,7 +6,14 @@ import os
 import tempfile
 import time
 
+import pytest
+
 from recorder import settings as st
+
+
+@pytest.fixture(autouse=True)
+def clear_config_env(monkeypatch):
+    monkeypatch.delenv(st.CONFIG_ENV, raising=False)
 
 
 def test_load_missing_file_returns_defaults(tmp_path, monkeypatch):

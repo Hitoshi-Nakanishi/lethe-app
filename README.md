@@ -33,6 +33,18 @@ task run
 syncs the Python environment with `uv sync --dev`.
 `task run` starts the Lethe desktop app.
 
+Docker is also supported for development and CI-like checks:
+
+```sh
+docker compose up -d --build app
+docker compose exec app task default
+```
+
+The Docker image uses Python 3.14.4, installs the native Tk, PortAudio, and
+ffmpeg libraries Lethe needs, and stores local container data under
+`.docker-data/`. Desktop GUI and audio capture from Docker still require host
+display/audio forwarding; see the [setup guide](docs/setup.md) for details.
+
 Optionally list and pre-download the configured models before first use:
 Whisper `medium`, `large-v3`; Ollama `llama3.1:8b`, `qwen2.5:7b`,
 `mistral:7b`.

@@ -1,0 +1,28 @@
+[paths]
+settings_dir = "/home/app/.lethe"
+temp_dir = "/workspace/lethe-app/.docker-data/tmp"
+datasets_dir = "/workspace/lethe-app/.docker-data/datasets"
+
+[models]
+whisper_live_model = "medium"
+whisper_final_model = "large-v3"
+whisper_language = "ja"
+ollama_url = "http://ollama:11434"
+default_llm_model = "llama3.1:8b"
+llm_models = ["llama3.1:8b", "qwen2.5:7b", "mistral:7b"]
+
+[filenames]
+mp3_template = "{timestamp}_{meeting_name}.mp3"
+dataset_template = "{timestamp}_{meeting_name}"
+meeting_name = "meeting"
+timestamp_format = "%Y%m%d_%H%M"
+
+[defaults]
+mic_capture = true
+noise_reduce = false
+live = true
+llm_model = ""
+theme = "midnight"
+dark_mode = true
+language = "en"
+font_size = 11

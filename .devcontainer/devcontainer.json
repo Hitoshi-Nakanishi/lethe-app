@@ -1,0 +1,8 @@
+{
+  "name": "Lethe",
+  "dockerComposeFile": "../compose.yaml",
+  "service": "app",
+  "workspaceFolder": "/workspace/lethe-app",
+  "remoteUser": "app",
+  "shutdownAction": "stopCompose"
+}
