@@ -21,6 +21,10 @@ If live transcription is enabled, Lethe shows a rough preview while recording.
 After recording stops, run the high-quality transcription pass for the final
 timestamped transcript.
 
+When the Whisper model is not installed, Lethe does not start an automatic
+download after recording stops. It leaves the audio ready to save so you can
+install the model later and analyze the recording afterward.
+
 ## Transcribe
 
 Click the high-quality transcription button after recording or after opening an
@@ -28,6 +32,10 @@ existing audio file. Lethe uses Whisper, keeps timestamps, and displays one
 segment per line. Click a timestamp such as `[02:15]` to play the audio from
 that point. During transcription and other analysis steps, the same meter shows
 an animated analysis wave and progress fill.
+
+Audio-only sessions and saved audio files can be loaded later from **Open
+audio** or **Open session**. If the model is already installed, analysis starts;
+otherwise the high-quality transcription button asks before downloading.
 
 ## Add Notes
 

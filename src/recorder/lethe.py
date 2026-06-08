@@ -572,6 +572,7 @@ class App:
         self._hq_combo_ids: list[str] = []
         self._downloading_model: str | None = None
         self._hq_should_run_after_download = False
+        self._analysis_audio_path: Path | None = None
         self._settings_window: tk.Toplevel | None = None
         self.theme_combo: ttk.Combobox | None = None
         self.language_combo: ttk.Combobox | None = None
@@ -1324,10 +1325,19 @@ class App:
 
     def _start_recording(self) -> None:
         mic_capture = self._mic_capture_var.get()
-        live = self._live_var.get() and mic_capture
+        live_requested = self._live_var.get() and mic_capture
+        live_model_missing = False
+        if live_requested:
+            from llm.whisper_models import is_model_cached
+
+            live_model_missing = not is_model_cached(WHISPER_MODEL)
+        live = live_requested and not live_model_missing
         nr = self._nr_var.get() and mic_capture
         preprocessor = self._build_preprocessor() if nr else None
         self._player.reset()
+        self._analysis_audio_path = None
+        if mic_capture:
+            self._clear_transcript()
         self.recorder.cleanup()  # drop the previous take's temp WAV
         if live:
             from llm.transcribe_stream import StreamingTranscriber
@@ -1341,7 +1351,6 @@ class App:
                 prompt_provider=lambda: self._notes_cache,
                 preprocessor=preprocessor,
             )
-            self._clear_transcript()
             self._transcriber.start()
             self.recorder = MicRecorder(on_chunk=self._transcriber.feed_int16)
         else:
@@ -1364,6 +1373,7 @@ class App:
             (self._tr("mic_off_tag"), not mic_capture),
             (self._tr("live_tag"), live),
             (self._tr("noise_tag"), nr),
+            (self._tr("record_only_tag"), live_model_missing),
         )
         tags = [text for text, on in tag_pairs if on]
         suffix = f"（{' / '.join(tags)}）" if tags else ""
@@ -1414,8 +1424,13 @@ class App:
         self._sync_transcript_actions()
         # Two-tier: when a live preview was shown, automatically run the
         # accurate full-file pass so the transcript settles on the HQ result.
+        if self.recorder.has_recording and not hq_model_cached(self._hq_model):
+            self._set_audio_ready_model_missing(self._hq_model)
         if live_was_on and self.recorder.has_recording:
-            self._run_hq(self.recorder.wav_path)
+            if hq_model_cached(self._hq_model):
+                self._run_hq(self.recorder.wav_path, prompt_download=False)
+            else:
+                self._set_audio_ready_model_missing(self._hq_model)
 
     def _build_preprocessor(self):
         """Return a callable(audio_f32, sr) -> audio_f32 that applies the pipeline."""
@@ -1484,14 +1499,23 @@ class App:
             return
         from llm.whisper_models import is_model_cached, model_info
 
-        info = model_info(self._hq_model)
-        if is_model_cached(self._hq_model):
-            text = self._tr("hq_model_status_ready")
-        elif info and info["disk_gb"]:
-            text = self._tr("hq_model_status_needs_download", size=_format_gb(info["disk_gb"]))
-        else:
-            text = self._tr("hq_model_status_needs_download", size="?")
-        self.hq_model_status.config(text=text)
+        def status_for(model_id: str) -> str:
+            info = model_info(model_id)
+            if is_model_cached(model_id):
+                return self._tr("model_status_installed")
+            if info and info["disk_gb"]:
+                return self._tr("model_status_missing_with_size", size=_format_gb(info["disk_gb"]))
+            return self._tr("model_status_missing")
+
+        self.hq_model_status.config(
+            text=self._tr(
+                "model_install_status",
+                live_model=WHISPER_MODEL,
+                live_status=status_for(WHISPER_MODEL),
+                hq_model=self._hq_model,
+                hq_status=status_for(self._hq_model),
+            )
+        )
 
     def _on_hq_model_change(self, _event=None) -> None:
         idx = self.hq_model_combo.current()
@@ -1729,23 +1753,64 @@ class App:
         if not path:
             return
         self._clear_transcript()
+        self.recorder.cleanup()
+        self.recorder = MicRecorder()
+        self._analysis_audio_path = Path(path)
         self.export_mp3_button.config(state="disabled")  # opened file is already a file
-        self._run_hq(Path(path), label=Path(path).name, load_playback=True)
+        self._load_playback_file(Path(path))
+        self._set_playback_enabled(self._player.has_audio)
+        self.hq_button.config(state="normal")
+        if hq_model_cached(self._hq_model):
+            self._run_hq(Path(path), label=Path(path).name, prompt_download=False)
+        else:
+            self._set_audio_ready_model_missing(self._hq_model)
 
     # ---------- high-quality pass ----------
 
     def hq_transcribe(self) -> None:
-        if self.is_recording or self._busy or not self.recorder.has_recording:
+        if self.is_recording or self._busy:
             return
-        self._run_hq(self.recorder.wav_path)
+        audio, source_sr, label = self._analysis_audio_source()
+        if audio is None:
+            return
+        self._run_hq(audio, source_sr=source_sr, label=label)
 
-    def _run_hq(self, audio_path: Path | None, label: str | None = None, load_playback: bool = False) -> None:
-        if audio_path is None:
+    def _has_analysis_audio(self) -> bool:
+        return self.recorder.has_recording or self._analysis_audio_path is not None or self._player.has_audio
+
+    def _analysis_audio_source(self) -> tuple[Path | np.ndarray | None, int, str | None]:
+        if self.recorder.has_recording:
+            return self.recorder.wav_path, SAMPLE_RATE, None
+        if self._analysis_audio_path is not None:
+            return self._analysis_audio_path, SAMPLE_RATE, self._analysis_audio_path.name
+        if self._player.has_audio:
+            return self._player.audio_float32, self._player.sample_rate, self._tr("loaded_audio_label")
+        return None, SAMPLE_RATE, None
+
+    def _set_audio_ready_model_missing(self, model: str) -> None:
+        self._set_status(self._tr("audio_ready_model_missing", model=model), "ready")
+        if hasattr(self, "hq_button") and self._has_analysis_audio():
+            self.hq_button.config(state="normal", text=self._tr("hq"))
+        if hasattr(self, "hq_model_combo"):
+            self._refresh_hq_model_combo()
+
+    def _run_hq(
+        self,
+        audio: Path | np.ndarray | None,
+        *,
+        source_sr: int = SAMPLE_RATE,
+        label: str | None = None,
+        prompt_download: bool = True,
+    ) -> None:
+        if audio is None:
             return
         from llm.whisper_models import is_model_cached, model_info
 
         model_size = self._hq_model
         if not is_model_cached(model_size):
+            if not prompt_download:
+                self._set_audio_ready_model_missing(model_size)
+                return
             info = model_info(model_size)
             size_text = _format_gb(info["disk_gb"]) if info and info["disk_gb"] else "?"
             ram_text = _format_gb(info["ram_gb"]) if info and info["ram_gb"] else "?"
@@ -1754,6 +1819,7 @@ class App:
                 self._tr("hq_download_confirm_message", model=model_size, size=size_text, ram=ram_text),
             )
             if not confirm:
+                self._set_audio_ready_model_missing(model_size)
                 return
             needs_download = True
         else:
@@ -1793,8 +1859,8 @@ class App:
                 from llm.transcribe_final import segments_to_text, transcribe_segments
 
                 segments = transcribe_segments(
-                    audio_path,
-                    SAMPLE_RATE,
+                    audio,
+                    source_sr,
                     model_size=model_size,
                     language=WHISPER_LANGUAGE,
                     initial_prompt=notes or None,
@@ -1802,8 +1868,6 @@ class App:
                     progress_callback=lambda f: self._progress_queue.put(f),
                 )
                 text = segments_to_text(segments, timestamps=True)
-                if load_playback:
-                    self._load_playback_file(audio_path)
                 self._hq_queue.put(("ok", text))
             except Exception as exc:
                 self._hq_queue.put(("error", describe_error(exc)))
@@ -1838,7 +1902,7 @@ class App:
             decoded = np.asarray(decode_audio(str(audio_path), sampling_rate=PLAYBACK_SR), dtype=np.float32)
             self._player.load(decoded.reshape(-1), PLAYBACK_SR)
         except Exception:
-            pass  # playback is a nicety; transcription already succeeded
+            pass  # Playback is optional; the original path can still be transcribed later.
 
     def _apply_hq_result(self, kind: str, payload: str) -> None:
         if kind == "download_complete":
@@ -1864,7 +1928,7 @@ class App:
         self.meter_caption.config(text="")
         self.wave.set_mode("idle")
         self.wave.set_progress(0)
-        if self.recorder.has_recording:
+        if self._has_analysis_audio():
             self.hq_button.config(state="normal")
         self.open_button.config(state="normal")
         self._set_playback_enabled(True)
@@ -1877,7 +1941,7 @@ class App:
         elif kind == "cancelled":
             self._set_status(self._tr("hq_download_cancelled", model=payload or active_model), "ready")
         elif kind == "error":
-            self._set_status(self._tr("hq_failed"), "recording")
+            self._set_status(self._tr("hq_failed"), "ready")
             messagebox.showerror(self._tr("hq_failed"), payload)
         self._refresh_hq_model_combo()
         self._sync_transcript_actions()
@@ -2083,11 +2147,14 @@ class App:
         self._replace_transcript(transcript)
         self.recorder.cleanup()
         self.recorder = MicRecorder()  # the session's audio is not a fresh recording
+        self._analysis_audio_path = None
         self.export_mp3_button.config(state="disabled")
         self.hq_button.config(state="disabled")
         self._player.load(np.zeros(0, dtype=np.float32), PLAYBACK_SR)
         if audio_bytes is not None:
             self._load_playback_bytes(audio_bytes)
+        if self._player.has_audio:
+            self.hq_button.config(state="normal")
         self._set_playback_enabled(self._player.has_audio)
         self._sync_transcript_actions()
         self._set_status(self._tr("session_loaded", name=Path(path).name), "ready")

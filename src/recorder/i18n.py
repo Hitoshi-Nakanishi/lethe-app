@@ -22,12 +22,13 @@ TOOLTIP_MIC_CAPTURE = (
 TOOLTIP_LIVE = (
     "録音中、5 秒ごとに Whisper medium で暫定の文字起こしを表示します。"
     "停止すると自動で「① 高精度で文字起こし」が走り、より正確な結果に置き換わります。"
+    "モデル未導入時は自動ダウンロードせず、録音だけを保存できます。"
 )
 TOOLTIP_NR = "録音音声から定常ノイズ（ファン・空調音など）を除去し、文字起こしの精度を上げます。"
-TOOLTIP_OPEN = "既存の音声ファイル(mp3/m4a/wav 等)を開き、「① 高精度で文字起こし」と同じ処理を実行します。"
+TOOLTIP_OPEN = "既存の音声ファイル(mp3/m4a/wav 等)を開きます。モデル導入済みなら自動で解析し、未導入なら音声だけ読み込みます。"
 TOOLTIP_MP3 = "録音した音声を MP3 ファイルとして保存します。"
 TOOLTIP_HQ = (
-    "録音または開いた音声の全体を選択中の Whisper モデルで文字起こしします。ライブ転写より時間はかかりますが、より正確です。"
+    "録音または開いた音声の全体を選択中の Whisper モデルで文字起こしします。モデル未導入時は確認してからダウンロードします。"
 )
 TOOLTIP_HQ_MODEL = (
     "「① 高精度で文字起こし」で使うモデル。\n"
@@ -94,6 +95,7 @@ UI_TEXT = {
         "live_tag": "ライブ",
         "noise_tag": "ノイズ除去",
         "mic_off_tag": "マイクなし",
+        "record_only_tag": "録音のみ",
         "stopped": "停止 · {seconds:.1f}秒",
         "finalizing": "文字起こしを確定中...",
         "transcribing": "文字起こし中...",
@@ -108,6 +110,10 @@ UI_TEXT = {
         "hq_model_label": "高精度モデル",
         "hq_model_status_ready": "✓ ダウンロード済み",
         "hq_model_status_needs_download": "⬇ 初回ダウンロードあり（約 {size}）",
+        "model_install_status": "ライブモデル {live_model}: {live_status}\n高精度モデル {hq_model}: {hq_status}",
+        "model_status_installed": "✓ 導入済み",
+        "model_status_missing_with_size": "⬇ 未導入（約 {size}）",
+        "model_status_missing": "⬇ 未導入",
         "hq_model_combo_entry_cached": "✓ {label}  [{size} / RAM {ram} / 品質 {quality} / 速度 {speed}]",
         "hq_model_combo_entry_uncached": "⬇ {label}  [{size} / RAM {ram} / 品質 {quality} / 速度 {speed}]",
         "cancel_download": "停止",
@@ -130,6 +136,10 @@ UI_TEXT = {
         "save_as_md": ".md として保存",
         "no_recording": "録音がありません。",
         "no_audio": "音声がありません。",
+        "audio_ready_model_missing": (
+            "音声は保存できます。モデル {model} は未導入のため自動ダウンロードせず、解析は未実行です。"
+        ),
+        "loaded_audio_label": "読み込み音声",
         "nothing_to_save": "保存する内容がありません。",
         "no_transcript": "文字起こしテキストがありません。",
         "empty_notes": "メモが空です。固有名詞や用語をメモ欄に入力してから実行してください。",
@@ -200,6 +210,7 @@ UI_TEXT = {
         "live_tag": "Live",
         "noise_tag": "Noise reduction",
         "mic_off_tag": "Mic off",
+        "record_only_tag": "Record only",
         "stopped": "Stopped · {seconds:.1f}s",
         "finalizing": "Finalizing transcript...",
         "transcribing": "Transcribing...",
@@ -214,6 +225,10 @@ UI_TEXT = {
         "hq_model_label": "HQ model",
         "hq_model_status_ready": "✓ Downloaded",
         "hq_model_status_needs_download": "⬇ First-use download ({size})",
+        "model_install_status": "Live model {live_model}: {live_status}\nHQ model {hq_model}: {hq_status}",
+        "model_status_installed": "✓ installed",
+        "model_status_missing_with_size": "⬇ not installed ({size})",
+        "model_status_missing": "⬇ not installed",
         "hq_model_combo_entry_cached": "✓ {label}  [{size} / RAM {ram} / quality {quality} / speed {speed}]",
         "hq_model_combo_entry_uncached": "⬇ {label}  [{size} / RAM {ram} / quality {quality} / speed {speed}]",
         "cancel_download": "Cancel",
@@ -234,6 +249,10 @@ UI_TEXT = {
         "save_as_md": "Save as .md",
         "no_recording": "No recording is available.",
         "no_audio": "No audio is available.",
+        "audio_ready_model_missing": (
+            "Audio can be saved. Model {model} is not installed, so Lethe did not auto-download or analyze it."
+        ),
+        "loaded_audio_label": "loaded audio",
         "nothing_to_save": "There is nothing to save.",
         "no_transcript": "There is no transcript text.",
         "empty_notes": "Notes are empty. Add proper nouns or terms before running correction.",

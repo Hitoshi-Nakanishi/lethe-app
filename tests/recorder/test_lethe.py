@@ -194,6 +194,128 @@ def test_text_for_switches_between_japanese_and_english():
     assert text_for("en", "mic_off_tag") == "Mic off"
     assert text_for("missing", "record") == "●  録音開始"
     assert text_for("en", "stopped", seconds=1.25) == "Stopped · 1.2s"
+    assert "Live model medium" in text_for(
+        "en",
+        "model_install_status",
+        live_model="medium",
+        live_status="✓ installed",
+        hq_model="large-v3",
+        hq_status="⬇ not installed (3.0 GB)",
+    )
+
+
+def test_run_hq_without_prompt_download_keeps_audio_ready(monkeypatch):
+    monkeypatch.setattr("llm.whisper_models.is_model_cached", lambda _model_size: False)
+    monkeypatch.setattr(
+        lethe.messagebox,
+        "askyesno",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("unexpected download prompt")),
+    )
+    ready_models: list[str] = []
+    app = SimpleNamespace(
+        _hq_model="large-v3",
+        _set_audio_ready_model_missing=lambda model: ready_models.append(model),
+    )
+
+    App._run_hq(app, Path("recording.wav"), prompt_download=False)
+
+    assert ready_models == ["large-v3"]
+    assert not hasattr(app, "_busy")
+
+
+def test_run_hq_cancelled_download_prompt_keeps_audio_ready(monkeypatch):
+    monkeypatch.setattr("llm.whisper_models.is_model_cached", lambda _model_size: False)
+    monkeypatch.setattr(
+        "llm.whisper_models.model_info",
+        lambda _model_size: {"disk_gb": 3.0, "ram_gb": 10.0},
+    )
+    monkeypatch.setattr(lethe.messagebox, "askyesno", lambda *_args, **_kwargs: False)
+    ready_models: list[str] = []
+    app = SimpleNamespace(
+        _hq_model="large-v3",
+        _set_audio_ready_model_missing=lambda model: ready_models.append(model),
+        _tr=lambda key, **kwargs: text_for("en", key, **kwargs),
+    )
+
+    App._run_hq(app, Path("recording.wav"))
+
+    assert ready_models == ["large-v3"]
+    assert not hasattr(app, "_busy")
+
+
+def test_hq_transcribe_uses_loaded_player_audio():
+    audio = np.linspace(-0.25, 0.25, 8000, dtype=np.float32)
+    calls: list[tuple[np.ndarray, int, str | None]] = []
+    app = SimpleNamespace(
+        is_recording=False,
+        _busy=False,
+        recorder=SimpleNamespace(has_recording=False),
+        _analysis_audio_path=None,
+        _player=SimpleNamespace(has_audio=True, audio_float32=audio, sample_rate=PLAYBACK_SR),
+        _tr=lambda key, **kwargs: text_for("en", key, **kwargs),
+    )
+    app._analysis_audio_source = lambda: App._analysis_audio_source(app)
+    app._run_hq = lambda audio_arg, *, source_sr=PLAYBACK_SR, label=None: calls.append((audio_arg, source_sr, label))
+
+    App.hq_transcribe(app)
+
+    assert len(calls) == 1
+    assert calls[0][0] is audio
+    assert calls[0][1] == PLAYBACK_SR
+    assert calls[0][2] == "loaded audio"
+
+
+def test_open_audio_with_missing_model_loads_without_auto_download(tmp_path, monkeypatch):
+    audio_path = tmp_path / "recording.wav"
+    audio_path.write_bytes(b"placeholder")
+    monkeypatch.setattr(lethe.filedialog, "askopenfilename", lambda **_kwargs: str(audio_path))
+    monkeypatch.setattr(lethe, "hq_model_cached", lambda _model_id: False)
+
+    class DummyButton:
+        def __init__(self) -> None:
+            self.state = None
+
+        def config(self, **kwargs) -> None:
+            if "state" in kwargs:
+                self.state = kwargs["state"]
+
+    class DummyRecorder:
+        def __init__(self) -> None:
+            self.cleaned = False
+
+        def cleanup(self) -> None:
+            self.cleaned = True
+
+    monkeypatch.setattr(lethe, "MicRecorder", DummyRecorder)
+    old_recorder = DummyRecorder()
+    loaded_paths: list[Path] = []
+    playback_enabled: list[bool] = []
+    ready_models: list[str] = []
+    app = SimpleNamespace(
+        is_recording=False,
+        _busy=False,
+        _clear_transcript=lambda: None,
+        recorder=old_recorder,
+        export_mp3_button=DummyButton(),
+        hq_button=DummyButton(),
+        _player=SimpleNamespace(has_audio=True),
+        _hq_model="large-v3",
+        _load_playback_file=lambda path: loaded_paths.append(path),
+        _set_playback_enabled=lambda enabled: playback_enabled.append(enabled),
+        _set_audio_ready_model_missing=lambda model: ready_models.append(model),
+        _run_hq=lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("unexpected transcription")),
+        _tr=lambda key, **kwargs: text_for("en", key, **kwargs),
+    )
+
+    App.open_audio(app)
+
+    assert old_recorder.cleaned is True
+    assert isinstance(app.recorder, DummyRecorder)
+    assert app._analysis_audio_path == audio_path
+    assert loaded_paths == [audio_path]
+    assert playback_enabled == [True]
+    assert app.hq_button.state == "normal"
+    assert ready_models == ["large-v3"]
 
 
 def test_player_load_duration_and_position():
@@ -285,6 +407,69 @@ def test_open_session_without_audio_clears_previous_playback(tmp_path, monkeypat
     assert recorder.cleaned is True
     assert player.has_audio is False
     assert playback_enabled == [False]
+    assert statuses[-1] == (f"セッションを読み込みました · {Path(bundle).name}", "ready")
+
+
+def test_open_session_with_audio_enables_later_transcription(tmp_path, monkeypatch):
+    bundle = tmp_path / "session-with-audio.zip"
+    with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("transcript.txt", "")
+        zf.writestr("notes.txt", "メモ\n")
+        zf.writestr("audio.wav", b"audio-bytes")
+
+    monkeypatch.setattr(lethe.filedialog, "askopenfilename", lambda **_kwargs: str(bundle))
+
+    class DummyText:
+        def __init__(self) -> None:
+            self.value = ""
+
+        def delete(self, *_args) -> None:
+            self.value = ""
+
+        def insert(self, *_args) -> None:
+            self.value = _args[-1]
+
+    class DummyButton:
+        def __init__(self) -> None:
+            self.state = None
+
+        def config(self, **kwargs) -> None:
+            if "state" in kwargs:
+                self.state = kwargs["state"]
+
+    class DummyRecorder:
+        def cleanup(self) -> None:
+            pass
+
+    player = Player()
+    notes = DummyText()
+    playback_enabled: list[bool] = []
+    statuses: list[tuple[str, str]] = []
+    transcript_holder = {"value": ""}
+    app = SimpleNamespace(
+        is_recording=False,
+        _busy=False,
+        notes_text=notes,
+        _on_notes_change=lambda _event: None,
+        _replace_transcript=lambda text: transcript_holder.__setitem__("value", text),
+        recorder=DummyRecorder(),
+        export_mp3_button=DummyButton(),
+        hq_button=DummyButton(),
+        _player=player,
+        _load_playback_bytes=lambda _audio_bytes: player.load(np.ones(1600, dtype=np.float32), PLAYBACK_SR),
+        _set_playback_enabled=lambda enabled: playback_enabled.append(enabled),
+        _sync_transcript_actions=lambda: None,
+        _set_status=lambda text, kind: statuses.append((text, kind)),
+        _tr=lambda key, **kwargs: text_for("ja", key, **kwargs),
+    )
+
+    App.open_session(app)
+
+    assert notes.value == "メモ\n"
+    assert transcript_holder["value"] == ""
+    assert player.has_audio is True
+    assert app.hq_button.state == "normal"
+    assert playback_enabled == [True]
     assert statuses[-1] == (f"セッションを読み込みました · {Path(bundle).name}", "ready")
 
 
