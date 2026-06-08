@@ -1,0 +1,50 @@
+services:
+  app:
+    image: lethe-app:dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        USER_UID: ${LOCAL_UID:-1000}
+        USER_GID: ${LOCAL_GID:-1000}
+        TASK_VERSION: ${TASK_VERSION:-3.51.1}
+    command: sleep infinity
+    init: true
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_PATH: ${LETHE_DOCKER_DATA_PATH:-/workspace/lethe-app/.docker-data}
+      DISPLAY: ${DISPLAY:-}
+      HF_HOME: /home/app/.cache/huggingface
+      LETHE_CONFIG: ${LETHE_DOCKER_CONFIG:-/workspace/lethe-app/docker/default.toml}
+      PULSE_SERVER: ${PULSE_SERVER:-}
+      PYTHONUNBUFFERED: "1"
+      UV_CACHE_DIR: /home/app/.cache/uv
+      UV_LINK_MODE: copy
+      UV_PROJECT_ENVIRONMENT: /opt/lethe/.venv
+      WAYLAND_DISPLAY: ${WAYLAND_DISPLAY:-}
+      XDG_CACHE_HOME: /home/app/.cache
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - .:/workspace/lethe-app
+      - lethe-huggingface-cache:/home/app/.cache/huggingface
+      - lethe-uv-cache:/home/app/.cache/uv
+      - lethe-user-data:/home/app/.lethe
+    working_dir: /workspace/lethe-app
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles:
+      - ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - lethe-ollama:/root/.ollama
+
+volumes:
+  lethe-huggingface-cache:
+  lethe-ollama:
+  lethe-user-data:
+  lethe-uv-cache:

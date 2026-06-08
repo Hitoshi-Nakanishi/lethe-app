@@ -17,6 +17,11 @@ dist/
 .coverage
 htmlcov/
 
+.env
+.env.*
+!.env.example
+.docker-data/
+
 .DS_Store
 .idea/
 .vscode/

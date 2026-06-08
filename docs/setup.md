@@ -55,6 +55,56 @@ Run the app:
 lethe
 ```
 
+## Docker Development Environment
+
+The repository includes a Docker setup for repeatable development checks and
+containerized app runs:
+
+```sh
+docker compose up -d --build app
+docker compose exec app task default
+```
+
+The image is based on Python 3.14.4 and pre-syncs the locked `uv` development
+environment. It also installs the native libraries used by Lethe at runtime:
+Tk for the desktop UI, PortAudio/ALSA/PulseAudio libraries for `sounddevice`,
+and ffmpeg for audio conversion paths.
+
+The app service uses [../docker/default.toml](../docker/default.toml). Container
+settings, temp files, and exported datasets are written under `.docker-data/`,
+which is ignored by git. Whisper and `uv` caches are persisted in Docker named
+volumes so model downloads and dependency caches survive container restarts.
+
+Open a shell in the app container:
+
+```sh
+docker compose exec app bash
+```
+
+Run the desktop app from the container:
+
+```sh
+docker compose exec app task run
+```
+
+GUI and audio forwarding depend on the host OS. On Linux, pass through your
+X11/Wayland and PulseAudio settings in `.env` and add any host-specific device
+mounts you need, such as `/dev/snd`. On Docker Desktop for macOS or Windows,
+containerized tests and model-management commands are the reliable path; local
+host Python is usually simpler for interactive microphone capture and Tk windows.
+
+To use containerized Ollama, start the optional profile and pull a model:
+
+```sh
+docker compose --profile ollama up -d ollama
+docker compose --profile ollama exec ollama ollama pull llama3.1:8b
+```
+
+The Docker config points Lethe to `http://ollama:11434`. If you prefer an
+Ollama service running on the host, copy [.env.example](../.env.example) to
+`.env` and set `LETHE_DOCKER_CONFIG` to a local TOML file whose
+`[models].ollama_url` uses `http://host.docker.internal:11434`.
+
 ## Optional Ollama Setup
 
 Install Ollama, start the service, and pull a model that is not already covered
