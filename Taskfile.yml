@@ -51,10 +51,29 @@ tasks:
     cmds:
       - task: app:model-list
 
+  llm-list:
+    desc: List configured Ollama LLM models
+    cmds:
+      - task: app:llm-list
+
+  llm:
+    desc: Download configured Ollama LLM models, or named models passed after --
+    summary: |
+      Usage:
+        task llm
+        task llm -- llama3.1:8b qwen2.5:7b
+    cmds:
+      - task: app:llm
+
   download-models:
     desc: Download configured Whisper and Ollama models (medium, large-v3, llama3.1:8b, qwen2.5:7b, mistral:7b)
     cmds:
       - task: app:download-models
+
+  download-llm-models:
+    desc: Download configured Ollama LLM models
+    cmds:
+      - task: app:llm
 
   download-whisper-models:
     desc: Download configured Whisper speech models (medium, large-v3)
@@ -62,10 +81,11 @@ tasks:
       - task: app:download-whisper-models
 
   download-llm-model:
-    desc: Download an Ollama LLM model
+    desc: Download configured Ollama LLM models, or named models passed after --
     summary: |
       Usage:
-        task download-llm-model -- llama3.1:8b
+        task download-llm-model
+        task download-llm-model -- llama3.1:8b qwen2.5:7b
     cmds:
       - task: app:download-llm-model
 

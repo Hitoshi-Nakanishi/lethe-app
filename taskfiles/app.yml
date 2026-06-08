@@ -11,6 +11,20 @@ tasks:
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/model_tasks.py list
 
+  llm-list:
+    desc: List configured Ollama LLM models
+    cmds:
+      - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/ollama_models.py list
+
+  llm:
+    desc: Download configured Ollama LLM models, or named models passed after --
+    summary: |
+      Usage:
+        task llm
+        task llm -- llama3.1:8b qwen2.5:7b
+    cmds:
+      - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/ollama_models.py pull {{.CLI_ARGS}}
+
   download-models:
     desc: Download configured Whisper and Ollama models (medium, large-v3, llama3.1:8b, qwen2.5:7b, mistral:7b)
     cmds:
@@ -22,10 +36,11 @@ tasks:
       - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/download_models.py {{.CLI_ARGS}}
 
   download-llm-model:
-    desc: Download an Ollama LLM model
+    desc: Download configured Ollama LLM models, or named models passed after --
     summary: |
       Usage:
-        task download-llm-model -- llama3.1:8b
+        task download-llm-model
+        task download-llm-model -- llama3.1:8b qwen2.5:7b
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/ollama_models.py pull {{.CLI_ARGS}}
 

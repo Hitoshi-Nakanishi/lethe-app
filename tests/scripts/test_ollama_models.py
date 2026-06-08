@@ -47,3 +47,29 @@ def test_download_configured_llm_models_stops_on_failure(monkeypatch):
 
     assert ollama_models.download_configured_llm_models(["ok:latest", "broken:latest", "skipped:latest"]) == 7
     assert seen == ["ok:latest", "broken:latest"]
+
+
+def test_pull_without_models_downloads_configured(monkeypatch):
+    seen: list[list[str] | None] = []
+
+    def fake_download(models: list[str] | None = None) -> int:
+        seen.append(models)
+        return 0
+
+    monkeypatch.setattr(ollama_models, "download_llm_models", fake_download)
+
+    assert ollama_models.main(["pull"]) == 0
+    assert seen == [None]
+
+
+def test_pull_accepts_multiple_models(monkeypatch):
+    seen: list[list[str] | None] = []
+
+    def fake_download(models: list[str] | None = None) -> int:
+        seen.append(models)
+        return 0
+
+    monkeypatch.setattr(ollama_models, "download_llm_models", fake_download)
+
+    assert ollama_models.main(["pull", "llama3.1:8b", "qwen2.5:7b"]) == 0
+    assert seen == [["llama3.1:8b", "qwen2.5:7b"]]

@@ -30,6 +30,14 @@ task model-list
 task download-models
 ```
 
+For only Ollama LLM models, use the shorter LLM tasks:
+
+```sh
+task llm-list
+task llm
+task llm -- llama3.1:8b qwen2.5:7b
+```
+
 Using uv:
 
 ```sh
@@ -112,7 +120,7 @@ by `task download-models`:
 
 ```sh
 ollama serve
-task download-llm-model -- llama3.1:8b
+task llm -- llama3.1:8b
 ```
 
 Lethe can record and transcribe without Ollama. Correction and minutes
