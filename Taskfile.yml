@@ -43,6 +43,7 @@ tasks:
       - task: app:run
 
   model-list:
+    desc: List configured Whisper and Ollama LLM models
     cmds:
       - task: app:model-list
 
@@ -51,7 +52,6 @@ tasks:
       - task: app:llm-list
 
   models:
-    desc: List/download Whisper and Ollama models
     summary: |
       Usage:
         task models
@@ -62,7 +62,6 @@ tasks:
       - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/model_tasks.py {{.CLI_ARGS}}
 
   llm:
-    desc: Download configured Ollama LLM models, or named models passed after --
     summary: |
       Usage:
         task llm
@@ -71,14 +70,24 @@ tasks:
       - task: app:llm
 
   download-models:
+    desc: Download both Whisper speech models and Ollama LLM models
+    summary: |
+      Downloads both model families used by Lethe:
+        1. Whisper speech models for local transcription
+        2. Ollama LLM models for correction and minutes generation
+
+      Before running this, run `task setup`. For the LLM downloads, Ollama must
+      be installed and serving.
     cmds:
       - task: app:download-models
 
   download-llm-models:
+    desc: Download configured Ollama LLM models
     cmds:
       - task: app:llm
 
   download-whisper-models:
+    desc: Download configured Whisper speech models
     cmds:
       - task: app:download-whisper-models
 
@@ -102,7 +111,7 @@ tasks:
   list:
     desc: Show public task commands
     summary: |
-      Shows the small public command set. Older compatibility tasks and
-      namespaced implementation tasks are intentionally hidden from the list.
+      Shows the public command set. Short compatibility aliases and namespaced
+      implementation tasks are intentionally hidden from the list.
     cmds:
       - task --list

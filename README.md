@@ -45,20 +45,34 @@ ffmpeg libraries Lethe needs, and stores local container data under
 `.docker-data/`. Desktop GUI and audio capture from Docker still require host
 display/audio forwarding; see the [setup guide](docs/setup.md) for details.
 
-Optionally list and pre-download the configured models before first use:
-Whisper `medium`, `large-v3`; Ollama `llama3.1:8b`, `qwen2.5:7b`,
-`mistral:7b`.
+Before downloading models:
+
+- Run `task setup` so the Python/uv environment exists.
+- For LLM model downloads, install Ollama and start it with `ollama serve`.
+
+List the configured models:
 
 ```sh
-task models
-task models -- download
+task model-list
 ```
 
-For only Ollama LLM models:
+Download both model groups:
 
 ```sh
-task llm
-task llm -- llama3.1:8b qwen2.5:7b
+task download-models
+```
+
+`task download-models` downloads both:
+
+- Whisper speech models for transcription: `medium`, `large-v3`
+- Ollama LLM models for correction/minutes: `llama3.1:8b`, `qwen2.5:7b`,
+  `mistral:7b`
+
+To download only one group:
+
+```sh
+task download-whisper-models
+task download-llm-models
 ```
 
 ## Features
