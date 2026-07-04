@@ -19,6 +19,7 @@ dependencies = [
   "noisereduce>=3.0.3",
   "numpy>=1.26",
   "scipy>=1.10",
+  "soundcard>=0.4.3; platform_system == 'Windows'",
   "sounddevice>=0.5.5",
 ]
 

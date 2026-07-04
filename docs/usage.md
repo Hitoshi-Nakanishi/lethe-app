@@ -10,12 +10,15 @@ Record -> Transcribe -> Add notes -> Correct with notes -> Generate minutes
 
 ## Record Audio
 
-1. Choose an input device from the input selector.
-2. Turn off **Capture microphone** when you do not want to record mic audio. In that mode, Lethe does not create an audio file, live transcript, or transcription.
-3. Enable noise reduction when the room has steady fan or air-conditioner noise.
-4. Click **Record** or press `Space`.
-5. Watch the wave meter react while speaking.
-6. Click **Stop** to finish recording.
+1. Choose the microphone input and PC output devices from the selectors.
+2. On Windows, **Capture PC audio** is enabled by default and records audio
+   playing through YouTube, Zoom, the browser, or local apps.
+3. Turn off **Capture microphone** when you do not want mic audio. If PC audio
+   capture remains on, Lethe records and transcribes only the computer output.
+4. Enable noise reduction when the room has steady fan or air-conditioner noise.
+5. Click **Record** or press `Space`.
+6. Watch the meter show Mix, Mic, and PC levels while audio is playing.
+7. Click **Stop** to finish recording.
 
 If live transcription is enabled, Lethe shows a rough preview while recording.
 After recording stops, run the high-quality transcription pass for the final

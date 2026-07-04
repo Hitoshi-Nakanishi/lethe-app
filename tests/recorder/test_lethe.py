@@ -23,9 +23,12 @@ from recorder.lethe import (
     PLAYBACK_SR,
     App,
     Player,
+    _as_mono_int16,
     _coerce_font_size,
     _fmt_time,
+    _int16_peak,
     _is_connection_error,
+    _mix_int16_chunks,
     _parse_leading_timestamp,
     _safe_filename_part,
     _suggested_dataset_name,
@@ -142,6 +145,49 @@ def test_list_input_devices_dedupes_by_name_and_channels(monkeypatch):
     ]
 
 
+def test_list_output_devices_returns_default_off_windows(monkeypatch):
+    monkeypatch.setattr(lethe.sys, "platform", "darwin")
+
+    assert lethe.list_output_devices() == [("システム既定", None)]
+
+
+def test_list_output_devices_uses_soundcard_speakers(monkeypatch):
+    class Speaker:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    class FakeSc:
+        @staticmethod
+        def all_speakers():
+            return [Speaker("Headphones"), Speaker("Headphones"), Speaker("HDMI")]
+
+    import sys
+
+    monkeypatch.setattr(lethe.sys, "platform", "win32")
+    monkeypatch.setitem(sys.modules, "soundcard", FakeSc)
+
+    assert lethe.list_output_devices() == [
+        ("システム既定", None),
+        ("Headphones", "Headphones"),
+        ("HDMI", "HDMI"),
+    ]
+
+
+def test_audio_mix_helpers_convert_pad_and_clip():
+    stereo = np.array([[0.5, -0.5], [1.5, 0.5]], dtype=np.float32)
+    mono = _as_mono_int16(stereo)
+    assert mono.shape == (2, 1)
+    assert mono.dtype == np.int16
+    assert mono[0, 0] == 0
+    assert mono[1, 0] == 32767
+
+    a = np.array([[20000], [20000], [20000]], dtype=np.int16)
+    b = np.array([[20000]], dtype=np.int16)
+    mixed = _mix_int16_chunks([a, b])
+    assert mixed.reshape(-1).tolist() == [32767, 20000, 20000]
+    assert _int16_peak(np.array([[-32768]], dtype=np.int16)) == 1.0
+
+
 def test_whisper_model_catalog_exposes_metadata():
     from llm.whisper_models import MODEL_CATALOG, model_info
 
@@ -189,8 +235,11 @@ def test_text_for_switches_between_japanese_and_english():
     assert text_for("ja", "record") == "●  録音開始"
     assert text_for("en", "record") == "●  Record"
     assert text_for("en", "system_default_input") == "System default"
+    assert text_for("en", "system_default_output") == "System default"
     assert text_for("en", "refresh_input") == "Refresh"
     assert text_for("ja", "mic_capture") == "マイク音声を取る"
+    assert text_for("en", "system_capture") == "Capture PC audio"
+    assert text_for("en", "capture_levels", mix=12, mic=3, system=9) == "Mix 12% · Mic 3% · PC 9%"
     assert text_for("en", "mic_off_tag") == "Mic off"
     assert text_for("missing", "record") == "●  録音開始"
     assert text_for("en", "stopped", seconds=1.25) == "Stopped · 1.2s"

@@ -77,8 +77,8 @@ task download-llm-models
 
 ## Features
 
-- Record microphone speech or any input/loopback source your OS exposes.
-- Optionally disable microphone capture when you only want to take notes.
+- Record microphone speech plus Windows PC output audio by default.
+- Optionally disable microphone or PC audio capture per session.
 - Run local Whisper transcription with live preview and a high-quality final
   pass.
 - Edit timestamped transcripts and click timestamps to play from that point.
