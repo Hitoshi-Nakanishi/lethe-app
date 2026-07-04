@@ -49,6 +49,7 @@ from recorder.i18n import (
     LANGUAGE_CODES,
     LANGUAGES,
     MIC_HELP,
+    SYSTEM_AUDIO_HELP,
     TOOLTIP_EXPORT_TXT,
     TOOLTIP_HQ,
     TOOLTIP_HQ_MODEL,
@@ -62,6 +63,7 @@ from recorder.i18n import (
     TOOLTIP_PLAY,
     TOOLTIP_RECORD,
     TOOLTIP_REFINE,
+    TOOLTIP_SYSTEM_CAPTURE,
     text_for,
 )
 from recorder.theme import THEME_LABELS, THEMES, palette_for
@@ -77,6 +79,8 @@ UI_FONT_FAMILY = "Segoe UI" if sys.platform.startswith("win") else "SF Pro Text"
 SAMPLE_RATE = 44100
 CHANNELS = 1
 DTYPE = "int16"
+RECORDER_CHUNK_SECONDS = 0.1
+LOOPBACK_CHANNELS = 2
 MP3_BITRATE = 128
 _MODEL_CONFIG = settings_store.model_config()
 WHISPER_MODEL = _MODEL_CONFIG["whisper_live_model"]
@@ -336,76 +340,247 @@ def list_input_devices() -> list[tuple[str, int | None]]:
     return out
 
 
-class MicRecorder:
-    """Records the chosen input device straight to a temp WAV file.
+def system_output_capture_available() -> bool:
+    """Return True when Lethe can try OS speaker-loopback capture."""
+    return sys.platform.startswith("win")
 
-    A writer thread drains the PortAudio callback queue to disk, so RAM use
-    stays flat regardless of recording length. ``level`` exposes the latest
-    chunk's peak amplitude for a VU meter.
+
+def list_output_devices() -> list[tuple[str, str | None]]:
+    """Return [(label, speaker_name), ...] for the default + known speakers."""
+    out: list[tuple[str, str | None]] = [("システム既定", None)]
+    if not system_output_capture_available():
+        return out
+    try:
+        import soundcard as sc  # type: ignore[import-not-found]
+
+        speakers = sc.all_speakers()
+    except Exception:
+        return out
+    seen: set[str] = set()
+    for speaker in speakers:
+        name = str(getattr(speaker, "name", "")).strip()
+        if not name:
+            continue
+        key = name.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append((name, name))
+    return out
+
+
+def _int16_peak(chunk: np.ndarray) -> float:
+    if chunk.size == 0:
+        return 0.0
+    return float(np.abs(chunk.astype(np.float32)).max()) / 32768.0
+
+
+def _as_mono_int16(data: np.ndarray) -> np.ndarray:
+    arr = np.asarray(data)
+    if arr.ndim > 1:
+        arr = arr.mean(axis=1)
+    if arr.dtype.kind == "f":
+        arr = np.clip(arr, -1.0, 1.0) * 32767.0
+    return np.clip(arr, -32768.0, 32767.0).astype(np.int16).reshape(-1, 1)
+
+
+def _mix_int16_chunks(chunks: list[np.ndarray]) -> np.ndarray:
+    arrays = [np.asarray(chunk, dtype=np.int16).reshape(-1) for chunk in chunks if chunk.size]
+    if not arrays:
+        return np.zeros((0, 1), dtype=np.int16)
+    frames = max(arr.size for arr in arrays)
+    mixed = np.zeros(frames, dtype=np.float32)
+    for arr in arrays:
+        if arr.size < frames:
+            padded = np.zeros(frames, dtype=np.float32)
+            padded[: arr.size] = arr.astype(np.float32)
+            mixed += padded
+        else:
+            mixed += arr.astype(np.float32)
+    return np.clip(mixed, -32768.0, 32767.0).astype(np.int16).reshape(-1, 1)
+
+
+class MicRecorder:
+    """Records microphone and/or Windows speaker loopback to one temp WAV.
+
+    Source threads enqueue fixed-size mono int16 chunks. A mixer/writer thread
+    drains those queues, writes a single mixed WAV, and optionally forwards the
+    same mixed chunks to live transcription.
     """
 
     def __init__(self, on_chunk: Callable[[np.ndarray], None] | None = None) -> None:
-        self._queue: queue.Queue[np.ndarray | None] = queue.Queue()
-        self._stream = None
+        self._mic_queue: queue.Queue[np.ndarray | None] = queue.Queue()
+        self._system_queue: queue.Queue[np.ndarray | None] = queue.Queue()
+        self._mic_stream = None
+        self._system_thread: threading.Thread | None = None
+        self._writer_thread: threading.Thread | None = None
+        self._stop_event = threading.Event()
         self._on_chunk = on_chunk
         self._wav_path: Path | None = None
-        self._writer_thread: threading.Thread | None = None
         self._frames_written = 0
         self._level = 0.0
+        self._mic_level = 0.0
+        self._system_level = 0.0
+        self._capture_mic = False
+        self._capture_system = False
 
-    def start(self, device: int | None = None) -> None:
-        import sounddevice as sd
+    def start(
+        self,
+        device: int | None = None,
+        *,
+        capture_mic: bool = True,
+        capture_system: bool = False,
+        output_device_id: str | None = None,
+    ) -> None:
+        if not capture_mic and not capture_system:
+            return
 
         self._wav_path = settings_store.temp_path(f"micrec-{os.getpid()}-{int(time.time() * 1000)}.wav")
         self._frames_written = 0
         self._level = 0.0
-        self._queue = queue.Queue()
-        self._writer_thread = threading.Thread(target=self._writer, args=(self._wav_path,), daemon=True)
-        self._writer_thread.start()
-        self._stream = sd.InputStream(
+        self._mic_level = 0.0
+        self._system_level = 0.0
+        self._capture_mic = capture_mic
+        self._capture_system = capture_system
+        self._mic_queue = queue.Queue()
+        self._system_queue = queue.Queue()
+        self._stop_event = threading.Event()
+
+        try:
+            if capture_system:
+                self._start_system_loopback(output_device_id)
+            if capture_mic:
+                self._start_mic_stream(device)
+            self._writer_thread = threading.Thread(target=self._writer, args=(self._wav_path,), daemon=True)
+            self._writer_thread.start()
+        except Exception:
+            self.stop()
+            self.cleanup()
+            raise
+
+    def _start_mic_stream(self, device: int | None) -> None:
+        import sounddevice as sd
+
+        chunk_frames = max(1, int(SAMPLE_RATE * RECORDER_CHUNK_SECONDS))
+        self._mic_stream = sd.InputStream(
             device=device,
             samplerate=SAMPLE_RATE,
             channels=CHANNELS,
             dtype=DTYPE,
-            callback=self._callback,
+            blocksize=chunk_frames,
+            callback=self._mic_callback,
         )
-        self._stream.start()
+        self._mic_stream.start()
 
-    def _callback(self, indata, frames, time_info, status) -> None:
-        chunk = indata.copy()
-        if chunk.size:
-            self._level = float(np.abs(chunk).max()) / 32768.0
-        self._queue.put(chunk)
-        if self._on_chunk is not None:
-            self._on_chunk(chunk)
+    def _start_system_loopback(self, output_device_id: str | None) -> None:
+        if not system_output_capture_available():
+            raise RuntimeError("PC audio capture is only available on Windows.")
+        ready = threading.Event()
+        errors: list[BaseException] = []
+        self._system_thread = threading.Thread(
+            target=self._system_loopback_worker,
+            args=(output_device_id, ready, errors),
+            daemon=True,
+        )
+        self._system_thread.start()
+        if not ready.wait(timeout=5.0):
+            self._stop_event.set()
+            raise RuntimeError("Timed out while starting PC audio capture.")
+        if errors:
+            raise errors[0]
+
+    def _mic_callback(self, indata, frames, time_info, status) -> None:
+        chunk = _as_mono_int16(indata.copy())
+        self._mic_level = _int16_peak(chunk)
+        self._mic_queue.put(chunk)
+
+    def _system_loopback_worker(
+        self,
+        output_device_id: str | None,
+        ready: threading.Event,
+        errors: list[BaseException],
+    ) -> None:
+        try:
+            import soundcard as sc  # type: ignore[import-not-found]
+
+            speaker_name = output_device_id or str(sc.default_speaker().name)
+            loopback_mic = sc.get_microphone(id=speaker_name, include_loopback=True)
+            chunk_frames = max(1, int(SAMPLE_RATE * RECORDER_CHUNK_SECONDS))
+            with loopback_mic.recorder(samplerate=SAMPLE_RATE, channels=LOOPBACK_CHANNELS) as source:
+                ready.set()
+                while not self._stop_event.is_set():
+                    data = source.record(numframes=chunk_frames)
+                    chunk = _as_mono_int16(data)
+                    self._system_level = _int16_peak(chunk)
+                    self._system_queue.put(chunk)
+        except BaseException as exc:
+            errors.append(exc)
+            ready.set()
+        finally:
+            self._system_queue.put(None)
 
     def _writer(self, path: Path) -> None:
+        mic_done = not self._capture_mic
+        system_done = not self._capture_system
         with wave.open(str(path), "wb") as wav:
             wav.setnchannels(CHANNELS)
             wav.setsampwidth(2)
             wav.setframerate(SAMPLE_RATE)
-            while True:
-                chunk = self._queue.get()
-                if chunk is None:
-                    break
-                wav.writeframes(chunk.tobytes())
-                self._frames_written += chunk.shape[0]
+            while not (mic_done and system_done):
+                chunks: list[np.ndarray] = []
+                if not mic_done:
+                    mic_chunk = self._mic_queue.get()
+                    if mic_chunk is None:
+                        mic_done = True
+                    else:
+                        chunks.append(mic_chunk)
+                if not system_done:
+                    system_chunk = self._system_queue.get()
+                    if system_chunk is None:
+                        system_done = True
+                    else:
+                        chunks.append(system_chunk)
+                mixed = _mix_int16_chunks(chunks)
+                if not mixed.size:
+                    continue
+                self._level = _int16_peak(mixed)
+                wav.writeframes(mixed.tobytes())
+                self._frames_written += mixed.shape[0]
+                if self._on_chunk is not None:
+                    self._on_chunk(mixed)
 
     def stop(self) -> None:
-        if self._stream is None:
-            return
-        self._stream.stop()
-        self._stream.close()
-        self._stream = None
-        self._level = 0.0
-        self._queue.put(None)
+        if self._mic_stream is not None:
+            self._mic_stream.stop()
+            self._mic_stream.close()
+            self._mic_stream = None
+            self._mic_queue.put(None)
+        self._stop_event.set()
+        if self._system_thread is not None:
+            self._system_thread.join(timeout=10)
+            self._system_thread = None
+        if self._capture_system:
+            self._system_queue.put(None)
         if self._writer_thread is not None:
             self._writer_thread.join(timeout=10)
             self._writer_thread = None
+        self._level = 0.0
+        self._mic_level = 0.0
+        self._system_level = 0.0
+        self._capture_mic = False
+        self._capture_system = False
 
     @property
     def level(self) -> float:
         return self._level
+
+    @property
+    def mic_level(self) -> float:
+        return self._mic_level
+
+    @property
+    def system_level(self) -> float:
+        return self._system_level
 
     @property
     def has_recording(self) -> bool:
@@ -556,6 +731,10 @@ class App:
         self._player = Player()
         self._settings = settings_store.load_settings()
         self._mic_capture_var = tk.BooleanVar(value=bool(self._settings.get("mic_capture", True)))
+        self._system_capture_var = tk.BooleanVar(
+            value=bool(self._settings.get("system_capture", system_output_capture_available()))
+            and system_output_capture_available()
+        )
         self._live_var = tk.BooleanVar(value=bool(self._settings.get("live")))
         self._nr_var = tk.BooleanVar(value=bool(self._settings.get("noise_reduce")))
         self._llm_models = settings_store.llm_models()
@@ -588,7 +767,9 @@ class App:
         self._font_size = _coerce_font_size(self._settings.get("font_size"))
         _apply_palette(self._theme_key(), self._dark_var.get())
         self._device_index: int | None = self._settings.get("device_index")
+        self._output_device_id: str | None = self._settings.get("output_device_id") or None
         self._devices: list[tuple[str, int | None]] = [("システム既定", None)]
+        self._output_devices: list[tuple[str, str | None]] = [("システム既定", None)]
         self._notes_cache = ""
         self.recorder = MicRecorder()
 
@@ -805,9 +986,13 @@ class App:
         self.root.title(f"{APP_NAME} — {self._tr('tagline')}")
         self.tagline_label.config(text=f"  {self._tr('tagline')}")
         self.input_label.config(text=self._tr("input"))
+        self.output_label.config(text=self._tr("output"))
         self.refresh_button.config(text="↻")
+        self.output_refresh_button.config(text="↻")
         self._refresh_device_labels()
+        self._refresh_output_labels()
         self.mic_label.config(text=self._tr("mic_capture"))
+        self.system_label.config(text=self._tr("system_capture"))
         self.nr_label.config(text=self._tr("noise_reduce"))
         if hasattr(self, "hq_model_label"):
             self.hq_model_label.config(text=self._tr("hq_model_label"))
@@ -861,7 +1046,7 @@ class App:
                 )
         if hasattr(self, "wave"):
             self.wave.restyle()
-        for widget_name in ("dark_check", "mic_check", "nr_check", "live_check"):
+        for widget_name in ("dark_check", "mic_check", "system_check", "nr_check", "live_check"):
             widget = getattr(self, widget_name, None)
             if widget is not None:
                 widget.set_font(self._font())
@@ -872,7 +1057,7 @@ class App:
             self.status_icon.configure(font=self._font(-2, "bold"))
         if hasattr(self, "status"):
             self.status.configure(font=self._font(0, "bold"))
-        for widget_name in ("language_combo", "theme_combo", "device_combo", "llm_combo", "hq_model_combo"):
+        for widget_name in ("language_combo", "theme_combo", "device_combo", "output_combo", "llm_combo", "hq_model_combo"):
             widget = getattr(self, widget_name, None)
             if widget is None:
                 continue
@@ -1053,8 +1238,26 @@ class App:
         self.refresh_button = ttk.Button(source, text="↻", width=4, command=self.refresh_devices)
         self.refresh_button.grid(row=0, column=2, sticky="w", pady=(0, 6))
         Tooltip(self.refresh_button, self._tr("refresh_input"))
+        self.output_label = ttk.Label(source, text=self._tr("output"), style="Card.TLabel")
+        self.output_label.grid(row=1, column=0, sticky="w", pady=(0, 6))
+        self.output_combo = ttk.Combobox(source, state="readonly", width=19, font=self._font())
+        self.output_combo.grid(row=1, column=1, sticky="w", padx=(8, 12), pady=(0, 6))
+        self.output_combo.bind("<<ComboboxSelected>>", self._on_output_change)
+        self.output_refresh_button = ttk.Button(source, text="↻", width=4, command=self.refresh_outputs)
+        self.output_refresh_button.grid(row=1, column=2, sticky="w", pady=(0, 6))
+        Tooltip(self.output_refresh_button, self._tr("refresh_output"))
+        ttk.Label(source, text="LLM", style="Card.TLabel").grid(row=2, column=0, sticky="w")
+        self.llm_combo = ttk.Combobox(
+            source,
+            state="readonly",
+            width=19,
+            values=self._llm_models,
+            textvariable=self._llm_model_var,
+            font=self._font(),
+        )
+        self.llm_combo.grid(row=2, column=1, sticky="w", padx=(8, 12), pady=(0, 6))
         self.mic_label = ttk.Label(source, text=self._tr("mic_capture"), style="Card.TLabel")
-        self.mic_label.grid(row=2, column=0, sticky="w", pady=(4, 4))
+        self.mic_label.grid(row=3, column=0, sticky="w", pady=(4, 4))
         self.mic_check = Switch(
             source,
             text="",
@@ -1064,20 +1267,23 @@ class App:
             font=self._font(),
             default_font_size=DEFAULT_FONT_SIZE,
         )
-        self.mic_check.grid(row=2, column=1, sticky="w", padx=(8, 12), pady=(4, 4))
+        self.mic_check.grid(row=3, column=1, sticky="w", padx=(8, 12), pady=(4, 4))
         Tooltip(self.mic_check, TOOLTIP_MIC_CAPTURE)
-        ttk.Label(source, text="LLM", style="Card.TLabel").grid(row=1, column=0, sticky="w")
-        self.llm_combo = ttk.Combobox(
+        self.system_label = ttk.Label(source, text=self._tr("system_capture"), style="Card.TLabel")
+        self.system_label.grid(row=4, column=0, sticky="w", pady=(4, 4))
+        self.system_check = Switch(
             source,
-            state="readonly",
-            width=19,
-            values=self._llm_models,
-            textvariable=self._llm_model_var,
+            text="",
+            variable=self._system_capture_var,
+            colors=_ui_colors,
+            command=self._on_system_capture_change,
             font=self._font(),
+            default_font_size=DEFAULT_FONT_SIZE,
         )
-        self.llm_combo.grid(row=1, column=1, sticky="w", padx=(8, 12), pady=(0, 6))
+        self.system_check.grid(row=4, column=1, sticky="w", padx=(8, 12), pady=(4, 4))
+        Tooltip(self.system_check, TOOLTIP_SYSTEM_CAPTURE)
         self.nr_label = ttk.Label(source, text=self._tr("noise_reduce"), style="Card.TLabel")
-        self.nr_label.grid(row=3, column=0, sticky="w")
+        self.nr_label.grid(row=5, column=0, sticky="w")
         self.nr_check = Switch(
             source,
             text="",
@@ -1086,11 +1292,11 @@ class App:
             font=self._font(),
             default_font_size=DEFAULT_FONT_SIZE,
         )
-        self.nr_check.grid(row=3, column=1, sticky="w", padx=(8, 12))
+        self.nr_check.grid(row=5, column=1, sticky="w", padx=(8, 12))
         Tooltip(self.nr_check, TOOLTIP_NR)
 
         self.hq_model_label = ttk.Label(source, text=self._tr("hq_model_label"), style="Card.TLabel")
-        self.hq_model_label.grid(row=4, column=0, sticky="w", pady=(8, 2))
+        self.hq_model_label.grid(row=6, column=0, sticky="w", pady=(8, 2))
         self.hq_model_combo = ttk.Combobox(
             source,
             state="readonly",
@@ -1098,15 +1304,15 @@ class App:
             textvariable=self._hq_model_var,
             font=self._font(),
         )
-        self.hq_model_combo.grid(row=4, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(8, 2))
+        self.hq_model_combo.grid(row=6, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(8, 2))
         self.hq_model_combo.bind("<<ComboboxSelected>>", self._on_hq_model_change)
         self._hq_model_tooltip = Tooltip(self.hq_model_combo, TOOLTIP_HQ_MODEL)
         self.hq_model_status = ttk.Label(source, text="", style="Hint.TLabel")
-        self.hq_model_status.grid(row=5, column=0, columnspan=3, sticky="w", padx=(0, 0), pady=(0, 4))
+        self.hq_model_status.grid(row=7, column=0, columnspan=3, sticky="w", padx=(0, 0), pady=(0, 4))
         self._refresh_hq_model_combo()
 
         playback = ttk.Frame(source, style="Card.TFrame")
-        playback.grid(row=6, column=0, columnspan=3, sticky="ew", pady=(14, 0))
+        playback.grid(row=8, column=0, columnspan=3, sticky="ew", pady=(14, 0))
         playback.columnconfigure(2, weight=1)
         self.play_button = ttk.Button(playback, text=self._tr("play"), width=12, command=self.toggle_play, state="disabled")
         self.play_button.grid(row=0, column=0, sticky="ew", padx=(0, 4), pady=(0, 4))
@@ -1119,7 +1325,8 @@ class App:
         self.timestamp_hint.grid(row=1, column=0, columnspan=3, sticky="w")
         playback.bind("<Configure>", lambda event: self.timestamp_hint.configure(wraplength=max(160, event.width)), add="+")
         self.refresh_devices()
-        self._update_mic_capture_controls()
+        self.refresh_outputs()
+        self._update_capture_controls()
 
         # --- controls: record + live | open audio + export mp3 ---
         controls = ttk.Frame(parent, style="Card.TFrame")
@@ -1141,7 +1348,7 @@ class App:
         )
         self.live_check.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 6))
         Tooltip(self.live_check, TOOLTIP_LIVE)
-        self._update_mic_capture_controls()
+        self._update_capture_controls()
         self.export_mp3_button = ttk.Button(
             controls, text=self._tr("save_mp3"), width=11, command=self.export_mp3, state="disabled"
         )
@@ -1325,7 +1532,9 @@ class App:
 
     def _start_recording(self) -> None:
         mic_capture = self._mic_capture_var.get()
-        live_requested = self._live_var.get() and mic_capture
+        system_capture = self._system_capture_var.get() and system_output_capture_available()
+        audio_capture = mic_capture or system_capture
+        live_requested = self._live_var.get() and audio_capture
         live_model_missing = False
         if live_requested:
             from llm.whisper_models import is_model_cached
@@ -1336,7 +1545,7 @@ class App:
         preprocessor = self._build_preprocessor() if nr else None
         self._player.reset()
         self._analysis_audio_path = None
-        if mic_capture:
+        if audio_capture:
             self._clear_transcript()
         self.recorder.cleanup()  # drop the previous take's temp WAV
         if live:
@@ -1356,21 +1565,33 @@ class App:
         else:
             self.recorder = MicRecorder()
 
-        if mic_capture:
+        if audio_capture:
             try:
-                self.recorder.start(device=self._device_index)
+                self.recorder.start(
+                    device=self._device_index,
+                    capture_mic=mic_capture,
+                    capture_system=system_capture,
+                    output_device_id=self._output_device_id,
+                )
             except Exception as exc:
                 if self._transcriber is not None:
                     self._transcriber.stop()
                     self._transcriber = None
-                messagebox.showerror(self._tr("start_record_error"), f"{type(exc).__name__}: {exc}{MIC_HELP}")
+                help_text = MIC_HELP
+                if system_capture and not mic_capture:
+                    help_text = SYSTEM_AUDIO_HELP
+                elif system_capture:
+                    help_text = f"{MIC_HELP}{SYSTEM_AUDIO_HELP}"
+                messagebox.showerror(self._tr("start_record_error"), f"{type(exc).__name__}: {exc}{help_text}")
                 return
 
         self.is_recording = True
         self._elapsed = 0
         self.timer.config(text="00:00")
         tag_pairs = (
-            (self._tr("mic_off_tag"), not mic_capture),
+            (self._tr("pc_audio_tag"), system_capture),
+            (self._tr("mic_off_tag"), system_capture and not mic_capture),
+            (self._tr("no_audio_tag"), not audio_capture),
             (self._tr("live_tag"), live),
             (self._tr("noise_tag"), nr),
             (self._tr("record_only_tag"), live_model_missing),
@@ -1385,12 +1606,15 @@ class App:
         self._set_transcript_actions(False)
         self._set_playback_enabled(False)
         self.mic_check.state(["disabled"])
+        self.system_check.state(["disabled"])
         self.live_check.state(["disabled"])
         self.nr_check.state(["disabled"])
         self.device_combo.state(["disabled"])
         self.refresh_button.config(state="disabled")
-        self.meter_caption.config(text=self._tr("input_level") if mic_capture else self._tr("mic_off_level"))
-        self.wave.set_mode("recording" if mic_capture else "idle")
+        self.output_combo.state(["disabled"])
+        self.output_refresh_button.config(state="disabled")
+        self.meter_caption.config(text=self._tr("input_level") if audio_capture else self._tr("mic_off_level"))
+        self.wave.set_mode("recording" if audio_capture else "idle")
         self.wave.set_level(0)
         self._schedule_tick()
 
@@ -1407,7 +1631,8 @@ class App:
         self._set_status(self._tr("stopped", seconds=duration), "ready")
         self.record_button.config(text=self._tr("record"), style="Accent.TButton")
         self.mic_check.state(["!disabled"])
-        self._update_mic_capture_controls()
+        self.system_check.state(["!disabled"] if system_output_capture_available() else ["disabled"])
+        self._update_capture_controls()
         self.open_button.config(state="normal")
         if self.recorder.has_recording:
             self.export_mp3_button.config(state="normal")
@@ -1532,11 +1757,11 @@ class App:
             for i, (_label, idx) in enumerate(self._devices):
                 if idx == self._device_index:
                     self.device_combo.current(i)
-                    self._update_mic_capture_controls()
+                    self._update_capture_controls()
                     return
         self.device_combo.current(0)
         self._device_index = None
-        self._update_mic_capture_controls()
+        self._update_capture_controls()
 
     def _refresh_device_labels(self) -> None:
         if not hasattr(self, "device_combo"):
@@ -1551,18 +1776,74 @@ class App:
             self.device_combo.current(current)
 
     def _on_mic_capture_change(self) -> None:
-        self._update_mic_capture_controls()
+        self._update_capture_controls()
 
     def _update_mic_capture_controls(self) -> None:
+        self._update_capture_controls()
+
+    def _on_system_capture_change(self) -> None:
+        self._update_capture_controls()
+
+    def refresh_outputs(self) -> None:
+        self._output_devices = list_output_devices()
+        self._refresh_output_labels()
+        if self._output_device_id is not None:
+            for i, (_label, device_id) in enumerate(self._output_devices):
+                if device_id == self._output_device_id:
+                    self.output_combo.current(i)
+                    self._update_capture_controls()
+                    return
+        self.output_combo.current(0)
+        self._output_device_id = None
+        self._update_capture_controls()
+
+    def _refresh_output_labels(self) -> None:
+        if not hasattr(self, "output_combo"):
+            return
+        current = self.output_combo.current()
+        values = [
+            self._tr("system_default_output") if i == 0 and device_id is None else label
+            for i, (label, device_id) in enumerate(self._output_devices)
+        ]
+        self.output_combo["values"] = values
+        if 0 <= current < len(values):
+            self.output_combo.current(current)
+
+    def _on_output_change(self, _event) -> None:
+        idx = self.output_combo.current()
+        if 0 <= idx < len(self._output_devices):
+            self._output_device_id = self._output_devices[idx][1]
+
+    def _update_capture_controls(self) -> None:
         if self.is_recording:
             return
-        if not all(hasattr(self, name) for name in ("device_combo", "refresh_button", "live_check", "nr_check")):
+        if not all(
+            hasattr(self, name)
+            for name in (
+                "device_combo",
+                "refresh_button",
+                "output_combo",
+                "output_refresh_button",
+                "system_check",
+                "live_check",
+                "nr_check",
+            )
+        ):
             return
-        enabled = self._mic_capture_var.get()
-        self.device_combo.state(["!disabled", "readonly"] if enabled else ["disabled"])
-        self.refresh_button.config(state="normal" if enabled else "disabled")
-        self.live_check.state(["!disabled"] if enabled else ["disabled"])
-        self.nr_check.state(["!disabled"] if enabled else ["disabled"])
+        mic_enabled = self._mic_capture_var.get()
+        system_available = system_output_capture_available()
+        system_enabled = self._system_capture_var.get() and system_available
+        if self._system_capture_var.get() and not system_available:
+            self._system_capture_var.set(False)
+            system_enabled = False
+
+        self.device_combo.state(["!disabled", "readonly"] if mic_enabled else ["disabled"])
+        self.refresh_button.config(state="normal" if mic_enabled else "disabled")
+        self.output_combo.state(["!disabled", "readonly"] if system_available else ["disabled"])
+        self.output_refresh_button.config(state="normal" if system_available else "disabled")
+        self.system_check.state(["!disabled"] if system_available else ["disabled"])
+        self.live_check.state(["!disabled"] if mic_enabled or system_enabled else ["disabled"])
+        self.nr_check.state(["!disabled"] if mic_enabled else ["disabled"])
 
     def _on_device_change(self, _event) -> None:
         idx = self.device_combo.current()
@@ -2225,6 +2506,15 @@ class App:
         target = min(self.recorder.level * 3.0, 1.0)
         self._meter_level = max(target, self._meter_level * 0.75)
         self.wave.set_level(self._meter_level)
+        if self.recorder.has_recording:
+            self.meter_caption.config(
+                text=self._tr(
+                    "capture_levels",
+                    mix=int(self.recorder.level * 100),
+                    mic=int(self.recorder.mic_level * 100),
+                    system=int(self.recorder.system_level * 100),
+                )
+            )
 
     def _update_playback(self) -> None:
         if not self._player.has_audio:
@@ -2324,7 +2614,9 @@ class App:
         settings_store.save_settings(
             {
                 "device_index": self._device_index,
+                "output_device_id": self._output_device_id,
                 "mic_capture": bool(self._mic_capture_var.get()),
+                "system_capture": bool(self._system_capture_var.get()) and system_output_capture_available(),
                 "noise_reduce": bool(self._nr_var.get()),
                 "live": bool(self._live_var.get()),
                 "llm_model": self._selected_llm_model(),

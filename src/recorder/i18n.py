@@ -15,12 +15,16 @@ LABEL_PAUSE = "❚❚  一時停止"
 
 WORKFLOW_HINT = "手順:  録音  →  ① 文字起こし  →  メモに用語を記入  →  ② 校正  →  ③ 議事録"
 
-TOOLTIP_RECORD = "マイク（選択した入力デバイス）の録音を開始／停止します。Space キーでも操作できます。"
+TOOLTIP_RECORD = "選択したマイク入力と PC 音声の録音を開始／停止します。Space キーでも操作できます。"
 TOOLTIP_MIC_CAPTURE = (
-    "オフにするとマイク入力を開かず、メモだけを記録できます。音声ファイル、ライブ転写、文字起こしは作成されません。"
+    "オフにするとマイク入力を開きません。PC 音声を取る設定がオンなら、YouTube や Zoom などの出力音声だけを録音できます。"
+)
+TOOLTIP_SYSTEM_CAPTURE = (
+    "Windows の既定出力または選択した出力デバイスの音声を取ります。"
+    "YouTube、Zoom、ブラウザ再生、ローカルアプリなど PC から出ている音が対象です。"
 )
 TOOLTIP_LIVE = (
-    "録音中、5 秒ごとに Whisper medium で暫定の文字起こしを表示します。"
+    "録音中、録音中のミックス音声を 5 秒ごとに Whisper medium で暫定の文字起こしとして表示します。"
     "停止すると自動で「① 高精度で文字起こし」が走り、より正確な結果に置き換わります。"
     "モデル未導入時は自動ダウンロードせず、録音だけを保存できます。"
 )
@@ -54,6 +58,12 @@ MIC_HELP = (
     "アクセスが許可されているかご確認ください。"
 )
 
+SYSTEM_AUDIO_HELP = (
+    "\n\nPC 音声を取るには Windows の出力デバイスが再生可能な状態で、"
+    "`soundcard` パッケージが利用できる必要があります。"
+    "設定の出力デバイスを「システム既定」に戻してから、もう一度お試しください。"
+)
+
 UI_TEXT = {
     "ja": {
         "tagline": "録音・文字起こし・議事録",
@@ -69,7 +79,11 @@ UI_TEXT = {
         "input": "入力",
         "refresh_input": "更新",
         "system_default_input": "システム既定",
+        "output": "出力",
+        "refresh_output": "更新",
+        "system_default_output": "システム既定",
         "mic_capture": "マイク音声を取る",
+        "system_capture": "PC音声を取る",
         "noise_reduce": "ノイズ除去",
         "record": LABEL_RECORD,
         "stop": LABEL_STOP,
@@ -77,6 +91,7 @@ UI_TEXT = {
         "save_mp3": "MP3 保存",
         "open_audio": "音声を開く",
         "input_level": "入力レベル",
+        "capture_levels": "Mix {mix}% · Mic {mic}% · PC {system}%",
         "mic_off_level": "マイク未使用",
         "analysis": "解析中",
         "transcript": "文字起こし",
@@ -95,6 +110,8 @@ UI_TEXT = {
         "live_tag": "ライブ",
         "noise_tag": "ノイズ除去",
         "mic_off_tag": "マイクなし",
+        "pc_audio_tag": "PC音声",
+        "no_audio_tag": "音声なし",
         "record_only_tag": "録音のみ",
         "stopped": "停止 · {seconds:.1f}秒",
         "finalizing": "文字起こしを確定中...",
@@ -184,7 +201,11 @@ UI_TEXT = {
         "input": "Input",
         "refresh_input": "Refresh",
         "system_default_input": "System default",
+        "output": "Output",
+        "refresh_output": "Refresh",
+        "system_default_output": "System default",
         "mic_capture": "Capture microphone",
+        "system_capture": "Capture PC audio",
         "noise_reduce": "Noise reduction",
         "record": "●  Record",
         "stop": "■  Stop",
@@ -192,6 +213,7 @@ UI_TEXT = {
         "save_mp3": "Save MP3",
         "open_audio": "Open audio",
         "input_level": "Input level",
+        "capture_levels": "Mix {mix}% · Mic {mic}% · PC {system}%",
         "mic_off_level": "Mic off",
         "analysis": "Analyzing",
         "transcript": "Transcript",
@@ -210,6 +232,8 @@ UI_TEXT = {
         "live_tag": "Live",
         "noise_tag": "Noise reduction",
         "mic_off_tag": "Mic off",
+        "pc_audio_tag": "PC audio",
+        "no_audio_tag": "No audio",
         "record_only_tag": "Record only",
         "stopped": "Stopped · {seconds:.1f}s",
         "finalizing": "Finalizing transcript...",

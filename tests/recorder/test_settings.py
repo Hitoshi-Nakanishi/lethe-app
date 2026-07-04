@@ -33,7 +33,9 @@ def test_save_then_load_roundtrip(tmp_path, monkeypatch):
     st.save_settings(
         {
             "device_index": 3,
+            "output_device_id": "Speakers",
             "mic_capture": False,
+            "system_capture": True,
             "noise_reduce": True,
             "live": True,
             "llm_model": "qwen2.5:7b",
@@ -47,7 +49,9 @@ def test_save_then_load_roundtrip(tmp_path, monkeypatch):
     )
     loaded = st.load_settings()
     assert loaded["device_index"] == 3
+    assert loaded["output_device_id"] == "Speakers"
     assert loaded["mic_capture"] is False
+    assert loaded["system_capture"] is True
     assert loaded["noise_reduce"] is True
     assert loaded["live"] is True
     assert loaded["llm_model"] == "qwen2.5:7b"
@@ -79,6 +83,8 @@ timestamp_format = "%Y%m%d_%H%M"
 
 [defaults]
 live = false
+system_capture = true
+output_device_id = "Speakers"
 noise_reduce = true
 llm_model = "mistral:7b"
 language = "en"
@@ -100,6 +106,8 @@ font_size = 13
     assert loaded["filenames"]["meeting_name"] == "standup"
     assert loaded["filenames"]["timestamp_format"] == "%Y%m%d_%H%M"
     assert loaded["defaults"]["live"] is False
+    assert loaded["defaults"]["system_capture"] is True
+    assert loaded["defaults"]["output_device_id"] == "Speakers"
     assert loaded["defaults"]["noise_reduce"] is True
     assert loaded["defaults"]["llm_model"] == "mistral:7b"
     assert loaded["defaults"]["language"] == "en"
@@ -112,6 +120,8 @@ def test_load_settings_uses_toml_defaults_before_saved_preferences(tmp_path, mon
         """
 [defaults]
 mic_capture = false
+system_capture = true
+output_device_id = "Speakers"
 noise_reduce = true
 live = false
 llm_model = "qwen2.5:7b"
@@ -128,6 +138,8 @@ font_size = 12
     loaded = st.load_settings()
 
     assert loaded["mic_capture"] is False
+    assert loaded["system_capture"] is True
+    assert loaded["output_device_id"] == "Speakers"
     assert loaded["noise_reduce"] is True
     assert loaded["live"] is False
     assert loaded["llm_model"] == "qwen2.5:7b"

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 import time
 import tomllib
@@ -43,6 +44,7 @@ DEFAULT_CONFIG: dict = {
     },
     "defaults": {
         "mic_capture": True,
+        "system_capture": sys.platform.startswith("win"),
         "noise_reduce": False,
         "live": True,
         "llm_model": "",
@@ -55,7 +57,9 @@ DEFAULT_CONFIG: dict = {
 
 DEFAULTS: dict = {
     "device_index": None,
+    "output_device_id": None,
     "mic_capture": True,
+    "system_capture": sys.platform.startswith("win"),
     "noise_reduce": False,
     "live": True,
     "geometry": "",
@@ -105,8 +109,8 @@ def _merge_defaults(out: dict, defaults: object) -> None:
     """Merge TOML-configured initial UI defaults with light type checks."""
     if not isinstance(defaults, dict):
         return
-    bool_keys = {"mic_capture", "noise_reduce", "live", "dark_mode"}
-    str_keys = {"llm_model", "theme", "language"}
+    bool_keys = {"mic_capture", "system_capture", "noise_reduce", "live", "dark_mode"}
+    str_keys = {"output_device_id", "llm_model", "theme", "language"}
     int_keys = {"font_size"}
     for key in bool_keys:
         value = defaults.get(key)

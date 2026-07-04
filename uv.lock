@@ -640,6 +640,7 @@ dependencies = [
     { name = "noisereduce" },
     { name = "numpy" },
     { name = "scipy" },
+    { name = "soundcard", marker = "sys_platform == 'win32'" },
     { name = "sounddevice" },
 ]
 
@@ -672,6 +673,7 @@ requires-dist = [
     { name = "pywin32", marker = "sys_platform == 'win32' and extra == 'loopback'", specifier = ">=311" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
     { name = "scipy", specifier = ">=1.10" },
+    { name = "soundcard", marker = "sys_platform == 'win32'", specifier = ">=0.4.3" },
     { name = "soundcard", marker = "extra == 'loopback'", specifier = ">=0.4.3" },
     { name = "sounddevice", specifier = ">=0.5.5" },
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.39" },
