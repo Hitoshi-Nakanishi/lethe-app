@@ -81,7 +81,7 @@ CHANNELS = 1
 DTYPE = "int16"
 RECORDER_CHUNK_SECONDS = 0.1
 LOOPBACK_CHANNELS = 2
-MP3_BITRATE = 128
+MP3_BITRATE = 64  # mono speech; halves the file size of 128 kbps with no practical loss
 _MODEL_CONFIG = settings_store.model_config()
 WHISPER_MODEL = _MODEL_CONFIG["whisper_live_model"]
 WHISPER_LANGUAGE = _MODEL_CONFIG["whisper_language"]
@@ -257,7 +257,12 @@ def _initialdir_option(key: str) -> dict[str, str]:
     return {"initialdir": str(path)} if path is not None else {}
 
 
-def _encode_mp3_float32(path: str | Path, audio_f32: np.ndarray, sample_rate: int) -> None:
+def _encode_mp3_float32(
+    path: str | Path,
+    audio_f32: np.ndarray,
+    sample_rate: int,
+    progress_callback: Callable[[float], None] | None = None,
+) -> None:
     import lameenc
 
     audio = np.clip(np.asarray(audio_f32, dtype=np.float32).reshape(-1) * 32768.0, -32768, 32767).astype(np.int16)
@@ -265,10 +270,15 @@ def _encode_mp3_float32(path: str | Path, audio_f32: np.ndarray, sample_rate: in
     encoder.set_bit_rate(MP3_BITRATE)
     encoder.set_in_sample_rate(sample_rate)
     encoder.set_channels(CHANNELS)
-    encoder.set_quality(2)
-    mp3 = encoder.encode(audio.tobytes())
-    mp3 += encoder.flush()
-    Path(path).write_bytes(mp3)
+    encoder.set_quality(5)  # LAME q5 encodes roughly 2x faster than q2; transparent for speech
+    total = len(audio)
+    step = sample_rate * 60  # one minute per encode call keeps memory flat and progress live
+    with open(path, "wb") as out:
+        for start in range(0, max(total, 1), step):
+            out.write(encoder.encode(audio[start : start + step].tobytes()))
+            if progress_callback is not None and total:
+                progress_callback(min(1.0, (start + step) / total))
+        out.write(encoder.flush())
 
 
 def _dataset_manifest(dataset_id: str, duration_seconds: float) -> dict:
@@ -615,13 +625,14 @@ class MicRecorder:
         self,
         path: str | Path,
         preprocessor: Callable[[np.ndarray, int], np.ndarray] | None = None,
+        progress_callback: Callable[[float], None] | None = None,
     ) -> None:
         if not self.has_recording:
             raise RuntimeError("No recording available")
         audio_f32 = self.audio_float32
         if preprocessor is not None:
             audio_f32 = preprocessor(audio_f32, SAMPLE_RATE)
-        _encode_mp3_float32(path, audio_f32, SAMPLE_RATE)
+        _encode_mp3_float32(path, audio_f32, SAMPLE_RATE, progress_callback)
 
     def cleanup(self) -> None:
         """Delete the temp WAV file, if any."""
@@ -734,6 +745,7 @@ class App:
         self._refine_queue: queue.Queue[tuple[str, str]] = queue.Queue()
         self._hq_queue: queue.Queue[tuple[str, str]] = queue.Queue()
         self._minutes_queue: queue.Queue[tuple[str, str]] = queue.Queue()
+        self._export_queue: queue.Queue[tuple[str, str]] = queue.Queue()
         self._progress_queue: queue.Queue[float] = queue.Queue()
         self._transcriber = None
         self._player = Player()
@@ -1907,6 +1919,8 @@ class App:
     # ---------- exports ----------
 
     def export_mp3(self) -> None:
+        if self.is_recording or self._busy:
+            return
         if not self.recorder.has_recording:
             messagebox.showinfo(self._tr("save_mp3"), self._tr("no_recording"))
             return
@@ -1920,12 +1934,20 @@ class App:
         if not path:
             return
         preprocessor = self._build_preprocessor() if self._nr_var.get() else None
-        try:
-            self.recorder.encode_mp3(path, preprocessor=preprocessor)
-        except Exception as exc:
-            messagebox.showerror(self._tr("generic_error"), self._tr("save_error", error=exc))
-            return
-        messagebox.showinfo(self._tr("saved"), self._tr("save_to", path=path))
+        self._begin_export(self._tr("mp3_saving"))
+
+        def worker() -> None:
+            try:
+                self.recorder.encode_mp3(
+                    path,
+                    preprocessor=preprocessor,
+                    progress_callback=lambda f: self._progress_queue.put(f),
+                )
+                self._export_queue.put(("mp3_ok", path))
+            except Exception as exc:
+                self._export_queue.put(("mp3_error", describe_error(exc)))
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def export_transcript(self) -> None:
         if not self._has_transcript_text():
@@ -1949,6 +1971,8 @@ class App:
         messagebox.showinfo(self._tr("saved"), self._tr("save_to", path=path))
 
     def export_dataset(self) -> None:
+        if self.is_recording or self._busy:
+            return
         transcript = self.transcript.get("1.0", "end").rstrip()
         notes = self.notes_text.get("1.0", "end").rstrip()
         if not (self.recorder.has_recording or self._player.has_audio):
@@ -1967,29 +1991,71 @@ class App:
             return
         folder = Path(path)
         dataset_id = _safe_filename_part(folder.name, fallback="dataset")
-        audio_path = folder / DATASET_AUDIO
-        transcript_path = folder / DATASET_TRANSCRIPT
-        memo_path = folder / DATASET_MEMO
-        manifest_path = folder / DATASET_MANIFEST
-        try:
-            folder.mkdir(parents=True, exist_ok=True)
-            self._write_dataset_audio(audio_path)
-            transcript_path.write_text(transcript + "\n", encoding="utf-8")
-            memo_path.write_text(notes + "\n", encoding="utf-8")
-            duration = self.recorder.duration_seconds if self.recorder.has_recording else self._player.duration
-            manifest = _dataset_manifest(dataset_id, duration)
-            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        except Exception as exc:
-            messagebox.showerror(self._tr("dataset_save_failed"), f"{type(exc).__name__}: {exc}")
-            return
-        messagebox.showinfo(self._tr("saved"), self._tr("dataset_save_to", path=folder))
-
-    def _write_dataset_audio(self, path: str | Path) -> None:
+        duration = self.recorder.duration_seconds if self.recorder.has_recording else self._player.duration
         preprocessor = self._build_preprocessor() if self.recorder.has_recording and self._nr_var.get() else None
+        self._begin_export(self._tr("dataset_saving"))
+
+        def worker() -> None:
+            try:
+                folder.mkdir(parents=True, exist_ok=True)
+                self._write_dataset_audio(folder / DATASET_AUDIO, preprocessor)
+                (folder / DATASET_TRANSCRIPT).write_text(transcript + "\n", encoding="utf-8")
+                (folder / DATASET_MEMO).write_text(notes + "\n", encoding="utf-8")
+                manifest = _dataset_manifest(dataset_id, duration)
+                (folder / DATASET_MANIFEST).write_text(
+                    json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+                )
+                self._export_queue.put(("dataset_ok", str(folder)))
+            except Exception as exc:
+                self._export_queue.put(("dataset_error", f"{type(exc).__name__}: {exc}"))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _write_dataset_audio(
+        self,
+        path: str | Path,
+        preprocessor: Callable[[np.ndarray, int], np.ndarray] | None,
+    ) -> None:
+        def progress(fraction: float) -> None:
+            self._progress_queue.put(fraction)
+
         if self.recorder.has_recording:
-            self.recorder.encode_mp3(path, preprocessor=preprocessor)
+            self.recorder.encode_mp3(path, preprocessor=preprocessor, progress_callback=progress)
             return
-        _encode_mp3_float32(path, self._player.audio_float32, self._player.sample_rate)
+        _encode_mp3_float32(path, self._player.audio_float32, self._player.sample_rate, progress)
+
+    def _begin_export(self, status: str) -> None:
+        """Mark the app busy and switch the meter to progress mode while an
+        export worker encodes on a background thread (the UI stays live)."""
+        self._busy = True
+        self.export_mp3_button.config(state="disabled")
+        self.hq_button.config(state="disabled")
+        self._set_transcript_actions(False)
+        self._set_status(status, "busy")
+        self.meter_caption.config(text=self._tr("analysis"))
+        self.wave.set_mode("analysis")
+        self.wave.set_progress(0)
+
+    def _apply_export_result(self, kind: str, payload: str) -> None:
+        self._busy = False
+        self.meter_caption.config(text="")
+        self.wave.set_mode("idle")
+        if self.recorder.has_recording:
+            self.export_mp3_button.config(state="normal")
+            self.hq_button.config(state="normal")
+        self._sync_transcript_actions()
+        if kind == "mp3_ok":
+            self._set_status(self._tr("saved"), "ok")
+            messagebox.showinfo(self._tr("saved"), self._tr("save_to", path=payload))
+        elif kind == "dataset_ok":
+            self._set_status(self._tr("saved"), "ok")
+            messagebox.showinfo(self._tr("saved"), self._tr("dataset_save_to", path=payload))
+        elif kind == "mp3_error":
+            self._set_status(self._tr("status_ready"), "ready")
+            messagebox.showerror(self._tr("generic_error"), self._tr("save_error", error=payload))
+        else:
+            self._set_status(self._tr("status_ready"), "ready")
+            messagebox.showerror(self._tr("dataset_save_failed"), payload)
 
     # ---------- notes ----------
 
@@ -2469,6 +2535,7 @@ class App:
         self._drain_simple_queue(self._refine_queue, self._apply_refine_result)
         self._drain_simple_queue(self._hq_queue, self._apply_hq_result)
         self._drain_simple_queue(self._minutes_queue, self._apply_minutes_result)
+        self._drain_simple_queue(self._export_queue, self._apply_export_result)
         self._drain_progress_queue()
         self._update_meter()
         self._update_playback()
