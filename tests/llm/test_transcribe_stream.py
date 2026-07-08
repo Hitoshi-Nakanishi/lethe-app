@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import numpy as np
 
-from llm.transcribe_stream import VAD_PARAMS, format_initial_prompt, resample_to_16k
+from llm.transcribe_stream import (
+    CONTEXT_BUDGET,
+    PROMPT_BUDGET,
+    VAD_PARAMS,
+    format_initial_prompt,
+    resample_to_16k,
+    strip_fillers,
+)
 
 
 def test_vad_params_relaxed():
@@ -33,6 +40,38 @@ def test_format_initial_prompt_caps_at_800_chars():
     out = format_initial_prompt(notes)
     assert out is not None
     assert len(out) == 800
+
+
+def test_format_initial_prompt_appends_context_tail():
+    out = format_initial_prompt("防衛", "防衛費の増額について議論した")
+    assert out is not None
+    directive, context = out.split("\n")
+    assert "防衛" in directive
+    assert context == "防衛費の増額について議論した"
+
+
+def test_format_initial_prompt_context_only():
+    out = format_initial_prompt("", "前のチャンクの発話")
+    assert out == "前のチャンクの発話"
+    assert format_initial_prompt("", "") is None
+
+
+def test_format_initial_prompt_notes_and_context_respect_budget():
+    out = format_initial_prompt("あ" * 2000, "い" * 2000)
+    assert out is not None
+    assert len(out) <= PROMPT_BUDGET
+    directive, context = out.split("\n")
+    assert len(context) == CONTEXT_BUDGET
+    assert context == "い" * CONTEXT_BUDGET
+
+
+def test_strip_fillers_drops_elongated_fillers():
+    assert strip_fillers("えーと、防衛費はですね") == "防衛費はですね"
+    assert strip_fillers("あのー、そのー、うーん、はい") == "はい"
+
+
+def test_strip_fillers_keeps_demonstrative_ano():
+    assert strip_fillers("あの会社の防衛関連事業") == "あの会社の防衛関連事業"
 
 
 def test_resample_to_16k_identity_when_already_target_rate():

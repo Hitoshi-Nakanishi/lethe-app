@@ -17,6 +17,7 @@ Threading model:
 from __future__ import annotations
 
 import queue
+import re
 import threading
 from collections.abc import Callable
 from math import gcd
@@ -25,6 +26,15 @@ from typing import Any
 import numpy as np
 
 TARGET_SR = 16000
+
+# Total character budget for the initial_prompt (~224 Whisper tokens) and the
+# slice of it reserved for recent-transcript context when present.
+PROMPT_BUDGET = 800
+CONTEXT_BUDGET = 200
+
+# Elongated Japanese fillers ("えーと", "あのー", ...). Plain "あの" is left
+# alone because it is also a legitimate demonstrative ("あの会社").
+_FILLER_RE = re.compile(r"(?:えー+と?|えっと+|あのー+|そのー+|うーん+)[、,]?\s*")
 
 # Permissive VAD: lower threshold + more padding so short utterances and
 # soft speech aren't dropped. faster-whisper's defaults (threshold=0.5,
@@ -37,20 +47,35 @@ VAD_PARAMS = {
 }
 
 
-def format_initial_prompt(notes: str) -> str | None:
-    """Turn freeform notes into a directive ``initial_prompt`` for Whisper.
+def strip_fillers(text: str) -> str:
+    """Drop elongated fillers so captions read cleanly and, when the result is
+    fed back as context, so the model is not conditioned into filler style."""
+    return _FILLER_RE.sub("", text).strip()
 
-    Whisper caps the prompt at ~224 tokens, so we trim to the last 800
-    characters and frame it as an authoritative-spelling instruction --
-    that biases decoding more strongly than dumping raw notes verbatim.
+
+def format_initial_prompt(notes: str, context: str = "") -> str | None:
+    """Turn freeform notes (and recent transcript context) into a directive
+    ``initial_prompt`` for Whisper.
+
+    Whisper caps the prompt at ~224 tokens, so the total is trimmed to
+    ``PROMPT_BUDGET`` characters. Notes are framed as an authoritative-spelling
+    instruction -- that biases decoding more strongly than dumping raw notes
+    verbatim. The tail of ``context`` is appended after the notes because
+    Whisper treats the prompt as the transcript that precedes the audio, which
+    conditions decoding on the conversation so far.
     """
-    if not notes:
+    parts: list[str] = []
+    text = (notes or "").strip()
+    recent = (context or "").strip()
+    if text:
+        framed = f"以下の用語は正しい表記としてそのまま使ってください: {text}"
+        notes_budget = PROMPT_BUDGET - (min(len(recent), CONTEXT_BUDGET) + 1 if recent else 0)
+        parts.append(framed[-notes_budget:])
+    if recent:
+        parts.append(recent[-CONTEXT_BUDGET:])
+    if not parts:
         return None
-    text = notes.strip()
-    if not text:
-        return None
-    framed = f"以下の用語は正しい表記としてそのまま使ってください: {text}"
-    return framed[-800:]
+    return "\n".join(parts)
 
 
 def resample_to_16k(audio_f32: np.ndarray, source_sr: int) -> np.ndarray:
@@ -89,6 +114,8 @@ class StreamingTranscriber:
         self._queue: queue.Queue[np.ndarray | None] = queue.Queue()
         self._thread: threading.Thread | None = None
         self._model: Any | None = None
+        self._recent_text = ""
+        self._last_emit = ""
 
     def start(self) -> None:
         if self._thread is not None:
@@ -148,13 +175,23 @@ class StreamingTranscriber:
                 return
 
     def _current_prompt(self) -> str | None:
-        if self._prompt_provider is None:
-            return None
-        try:
-            notes = self._prompt_provider() or ""
-        except Exception:
-            return None
-        return format_initial_prompt(notes)
+        notes = ""
+        if self._prompt_provider is not None:
+            try:
+                notes = self._prompt_provider() or ""
+            except Exception:
+                notes = ""
+        return format_initial_prompt(notes, self._recent_text)
+
+    def _emit(self, text: str) -> None:
+        cleaned = strip_fillers(text)
+        # Conditioning on our own output can lock Whisper into repeating one
+        # phrase; dropping consecutive identical chunks breaks that loop.
+        if not cleaned or cleaned == self._last_emit:
+            return
+        self._last_emit = cleaned
+        self._recent_text = f"{self._recent_text} {cleaned}"[-2 * CONTEXT_BUDGET :]
+        self._on_text(cleaned)
 
     def _transcribe(self, audio_f32: np.ndarray) -> None:
         try:
@@ -174,7 +211,7 @@ class StreamingTranscriber:
                 kwargs["initial_prompt"] = prompt
             text = self._transcribe_with_loaded_model(resampled, kwargs)
             if text:
-                self._on_text(text)
+                self._emit(text)
         except Exception as exc:
             from llm.whisper_models import should_fallback_to_cpu
 
@@ -183,7 +220,7 @@ class StreamingTranscriber:
                     self._model = self._load_cpu_fallback_model()
                     text = self._transcribe_with_loaded_model(resampled, kwargs)
                     if text:
-                        self._on_text(text)
+                        self._emit(text)
                     return
                 except Exception as fallback_exc:
                     exc = fallback_exc
