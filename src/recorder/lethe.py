@@ -500,6 +500,12 @@ class MicRecorder:
         ready: threading.Event,
         errors: list[BaseException],
     ) -> None:
+        import ctypes
+
+        # soundcard uses COM, which must be initialized per thread (else WASAPI
+        # calls fail with 0x800401f0). 0 = COINIT_MULTITHREADED; S_OK/S_FALSE
+        # mean this thread now holds a reference that must be released.
+        com_initialized = ctypes.windll.ole32.CoInitializeEx(None, 0) in (0, 1)
         try:
             import soundcard as sc  # type: ignore[import-not-found]
 
@@ -518,6 +524,8 @@ class MicRecorder:
             ready.set()
         finally:
             self._system_queue.put(None)
+            if com_initialized:
+                ctypes.windll.ole32.CoUninitialize()
 
     def _writer(self, path: Path) -> None:
         mic_done = not self._capture_mic
