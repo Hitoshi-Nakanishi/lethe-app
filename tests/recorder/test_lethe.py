@@ -522,11 +522,28 @@ def test_open_session_with_audio_enables_later_transcription(tmp_path, monkeypat
     assert statuses[-1] == (f"セッションを読み込みました · {Path(bundle).name}", "ready")
 
 
+def test_encode_mp3_float32_chunked_reports_progress(tmp_path):
+    progress: list[float] = []
+    audio = np.zeros(44100 * 130, dtype=np.float32)  # 130s -> three 60s encode calls
+    out = tmp_path / "a.mp3"
+    lethe._encode_mp3_float32(out, audio, 44100, progress.append)
+    assert out.stat().st_size > 0
+    assert len(progress) == 3
+    assert progress[-1] == 1.0
+
+
 def test_export_dataset_writes_one_to_one_folder_mapping(tmp_path, monkeypatch):
     folder = tmp_path / "20260525_0908_standup"
     monkeypatch.setattr(lethe.filedialog, "asksaveasfilename", lambda **_kwargs: str(folder))
-    infos: list[tuple[str, str]] = []
-    monkeypatch.setattr(lethe.messagebox, "showinfo", lambda title, message: infos.append((title, message)))
+
+    class ImmediateThread:
+        def __init__(self, target, daemon=None) -> None:
+            self._target = target
+
+        def start(self) -> None:
+            self._target()
+
+    monkeypatch.setattr(lethe.threading, "Thread", ImmediateThread)
 
     class DummyText:
         def __init__(self, value: str) -> None:
@@ -535,12 +552,18 @@ def test_export_dataset_writes_one_to_one_folder_mapping(tmp_path, monkeypatch):
         def get(self, *_args) -> str:
             return self.value
 
+    import queue as queue_mod
+
     app = SimpleNamespace(
+        is_recording=False,
+        _busy=False,
         transcript=DummyText("[00:00] hello\n"),
         notes_text=DummyText("# Notes\n- Alice\n"),
         recorder=SimpleNamespace(has_recording=False),
         _player=SimpleNamespace(has_audio=True, duration=12.34),
-        _write_dataset_audio=lambda path: Path(path).write_bytes(b"mp3"),
+        _write_dataset_audio=lambda path, preprocessor: Path(path).write_bytes(b"mp3"),
+        _begin_export=lambda status: None,
+        _export_queue=queue_mod.Queue(),
         _tr=lambda key, **kwargs: text_for("en", key, **kwargs),
     )
 
@@ -560,4 +583,4 @@ def test_export_dataset_writes_one_to_one_folder_mapping(tmp_path, monkeypatch):
         "memo": "memo.md",
     }
     assert [item["role"] for item in manifest["files"]] == ["audio", "transcript", "memo"]
-    assert infos[-1] == ("Saved", f"Dataset saved to:\n{folder}")
+    assert app._export_queue.get_nowait() == ("dataset_ok", str(folder))
