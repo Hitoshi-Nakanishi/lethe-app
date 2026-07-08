@@ -8,6 +8,7 @@ from llm.transcribe_stream import (
     CONTEXT_BUDGET,
     PROMPT_BUDGET,
     VAD_PARAMS,
+    StreamingTranscriber,
     format_initial_prompt,
     resample_to_16k,
     strip_fillers,
@@ -72,6 +73,32 @@ def test_strip_fillers_drops_elongated_fillers():
 
 def test_strip_fillers_keeps_demonstrative_ano():
     assert strip_fillers("あの会社の防衛関連事業") == "あの会社の防衛関連事業"
+
+
+def test_emit_events_carry_block_id_and_dedup():
+    events: list = []
+    t = StreamingTranscriber(events.append)
+    t._emit("えーと、防衛費について")
+    t._emit("防衛費について")  # identical after filler strip -> dropped
+    assert events == [("live", 0, "防衛費について")]
+
+
+def test_collect_for_polish_batches_and_advances_block():
+    t = StreamingTranscriber(lambda e: None, polish_block_chunks=2)
+    chunk = np.zeros(10, dtype=np.float32)
+    t._collect_for_polish(chunk)
+    assert t._polish_queue.empty()
+    t._collect_for_polish(chunk)
+    block_id, audio = t._polish_queue.get_nowait()
+    assert block_id == 0
+    assert audio.size == 20
+    assert t._block_id == 1
+
+
+def test_collect_for_polish_disabled():
+    t = StreamingTranscriber(lambda e: None, polish_block_chunks=0)
+    t._collect_for_polish(np.zeros(10, dtype=np.float32))
+    assert t._polish_queue.empty()
 
 
 def test_resample_to_16k_identity_when_already_target_rate():

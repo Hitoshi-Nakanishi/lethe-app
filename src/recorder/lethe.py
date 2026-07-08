@@ -730,7 +730,7 @@ class App:
         self._tick_job: str | None = None
         self._elapsed = 0
         self._meter_level = 0.0
-        self._transcript_queue: queue.Queue[str] = queue.Queue()
+        self._transcript_queue: queue.Queue[tuple[str, int, str]] = queue.Queue()
         self._refine_queue: queue.Queue[tuple[str, str]] = queue.Queue()
         self._hq_queue: queue.Queue[tuple[str, str]] = queue.Queue()
         self._minutes_queue: queue.Queue[tuple[str, str]] = queue.Queue()
@@ -1560,7 +1560,7 @@ class App:
             from llm.transcribe_stream import StreamingTranscriber
 
             self._transcriber = StreamingTranscriber(
-                on_text=lambda t: self._transcript_queue.put(t),
+                on_event=lambda e: self._transcript_queue.put(e),
                 model_size=WHISPER_MODEL,
                 language=WHISPER_LANGUAGE,
                 source_sr=SAMPLE_RATE,
@@ -2479,10 +2479,13 @@ class App:
         appended = False
         while True:
             try:
-                text = self._transcript_queue.get_nowait()
+                kind, block_id, text = self._transcript_queue.get_nowait()
             except queue.Empty:
                 break
-            self._append_transcript(text)
+            if kind == "polished":
+                self._replace_transcript_block(block_id, text)
+            else:
+                self._append_transcript(text, block_id)
             appended = True
         if appended and not self.is_recording:
             self._sync_transcript_actions()
@@ -2534,11 +2537,26 @@ class App:
 
     # ---------- transcript helpers ----------
 
-    def _append_transcript(self, text: str) -> None:
-        if self.transcript.index("end-1c") != "1.0":
-            self.transcript.insert("end", " ")
-        self.transcript.insert("end", text)
+    def _append_transcript(self, text: str, block_id: int | None = None) -> None:
+        tags = (f"liveblk-{block_id}",) if block_id is not None else ()
+        prefix = "" if self.transcript.index("end-1c") == "1.0" else " "
+        self.transcript.insert("end", prefix + text, tags)
         self.transcript.see("end")
+
+    def _replace_transcript_block(self, block_id: int, text: str) -> None:
+        """Swap a block's live preview lines for their polished re-transcription.
+
+        The block is located by its text tag, so this is a no-op once the HQ
+        pass (or anything else) has rewritten the transcript.
+        """
+        tag = f"liveblk-{block_id}"
+        ranges = self.transcript.tag_ranges(tag)
+        if not ranges:
+            return
+        start = self.transcript.index(ranges[0])
+        starts_at_top = start == "1.0"
+        self.transcript.delete(ranges[0], ranges[-1])
+        self.transcript.insert(start, ("" if starts_at_top else " ") + text, (tag,))
 
     def _replace_transcript(self, text: str) -> None:
         self.transcript.delete("1.0", "end")

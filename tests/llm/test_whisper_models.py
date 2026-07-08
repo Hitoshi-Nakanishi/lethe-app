@@ -53,7 +53,7 @@ def test_auto_model_creation_falls_back_to_cpu(monkeypatch):
 
 
 def test_streaming_transcriber_retries_chunk_on_cpu_fallback(monkeypatch):
-    seen: list[str] = []
+    seen: list[tuple[str, int, str]] = []
     transcriber = StreamingTranscriber(seen.append, source_sr=16000, device="auto")
 
     class BrokenModel:
@@ -69,7 +69,7 @@ def test_streaming_transcriber_retries_chunk_on_cpu_fallback(monkeypatch):
 
     transcriber._transcribe(np.zeros(16000, dtype=np.float32))
 
-    assert seen == ["fallback text"]
+    assert seen == [("live", 0, "fallback text")]
 
 
 def test_download_model_cancellation_raises(monkeypatch):
