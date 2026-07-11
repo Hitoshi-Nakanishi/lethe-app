@@ -1639,7 +1639,6 @@ class App:
         self._schedule_tick()
 
     def _stop_recording(self) -> None:
-        live_was_on = self._transcriber is not None
         self.recorder.stop()
         self.is_recording = False
         self._cancel_tick()
@@ -1667,15 +1666,12 @@ class App:
             self._transcriber = None
             self._set_status(self._tr("stopped", seconds=duration), "ready")
         self._sync_transcript_actions()
-        # Two-tier: when a live preview was shown, automatically run the
-        # accurate full-file pass so the transcript settles on the HQ result.
+        # Keep the completed audio immediately available for export.  A full
+        # high-quality pass can take much longer than a recording, so it is
+        # started explicitly from the dedicated button instead of blocking
+        # the save workflow after every live preview.
         if self.recorder.has_recording and not hq_model_cached(self._hq_model):
             self._set_audio_ready_model_missing(self._hq_model)
-        if live_was_on and self.recorder.has_recording:
-            if hq_model_cached(self._hq_model):
-                self._run_hq(self.recorder.wav_path, prompt_download=False)
-            else:
-                self._set_audio_ready_model_missing(self._hq_model)
 
     def _build_preprocessor(self):
         """Return a callable(audio_f32, sr) -> audio_f32 that applies the pipeline."""
@@ -1919,7 +1915,10 @@ class App:
     # ---------- exports ----------
 
     def export_mp3(self) -> None:
-        if self.is_recording or self._busy:
+        if self.is_recording:
+            return
+        if self._busy:
+            messagebox.showinfo(self._tr("save_mp3"), self._tr("save_audio_while_busy"))
             return
         if not self.recorder.has_recording:
             messagebox.showinfo(self._tr("save_mp3"), self._tr("no_recording"))
@@ -2186,6 +2185,7 @@ class App:
         self._active_hq_model = model_size
         self.hq_button.config(state="disabled", text=self._tr("transcribing"))
         self.open_button.config(state="disabled")
+        self.export_mp3_button.config(state="disabled")
         self._set_transcript_actions(False)
         what = f" · {label}" if label else ""
         if needs_download:
@@ -2286,6 +2286,8 @@ class App:
         if self._has_analysis_audio():
             self.hq_button.config(state="normal")
         self.open_button.config(state="normal")
+        if self.recorder.has_recording:
+            self.export_mp3_button.config(state="normal")
         self._set_playback_enabled(True)
         if kind == "ok":
             if payload.strip():

@@ -314,6 +314,75 @@ def test_hq_transcribe_uses_loaded_player_audio():
     assert calls[0][2] == "loaded audio"
 
 
+def test_export_mp3_explains_why_it_is_unavailable_while_busy(monkeypatch):
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setattr(lethe.messagebox, "showinfo", lambda title, message: calls.append((title, message)))
+    app = SimpleNamespace(
+        is_recording=False,
+        _busy=True,
+        _tr=lambda key, **kwargs: text_for("en", key, **kwargs),
+    )
+
+    App.export_mp3(app)
+
+    assert calls == [("Save MP3", "Transcription or another task is still running. Save the MP3 after it finishes.")]
+
+
+def test_stop_recording_keeps_audio_ready_without_starting_hq(monkeypatch):
+    monkeypatch.setattr(lethe, "system_output_capture_available", lambda: False)
+    monkeypatch.setattr(lethe, "hq_model_cached", lambda _model: True)
+
+    class DummyButton:
+        def __init__(self) -> None:
+            self.states: list[str] = []
+
+        def config(self, **kwargs) -> None:
+            if "state" in kwargs:
+                self.states.append(kwargs["state"])
+
+        def state(self, _states) -> None:
+            pass
+
+    hq_calls: list[object] = []
+    recorder = SimpleNamespace(
+        stop=lambda: None,
+        has_recording=True,
+        duration_seconds=12.0,
+        audio_float32=np.zeros(16, dtype=np.float32),
+        wav_path=Path("recording.wav"),
+    )
+    app = SimpleNamespace(
+        recorder=recorder,
+        is_recording=True,
+        _cancel_tick=lambda: None,
+        _meter_level=1.0,
+        wave=SimpleNamespace(set_mode=lambda _mode: None, set_level=lambda _level: None),
+        meter_caption=SimpleNamespace(config=lambda **_kwargs: None),
+        _set_status=lambda _text, _kind: None,
+        _tr=lambda key, **kwargs: text_for("en", key, **kwargs),
+        record_button=DummyButton(),
+        mic_check=DummyButton(),
+        system_check=DummyButton(),
+        _update_capture_controls=lambda: None,
+        open_button=DummyButton(),
+        export_mp3_button=DummyButton(),
+        hq_button=DummyButton(),
+        _player=SimpleNamespace(load=lambda _audio, _sample_rate: None),
+        _set_playback_enabled=lambda _enabled: None,
+        _transcriber=None,
+        _sync_transcript_actions=lambda: None,
+        _hq_model="large-v3",
+        _run_hq=lambda *args, **kwargs: hq_calls.append((args, kwargs)),
+    )
+
+    App._stop_recording(app)
+
+    assert app.is_recording is False
+    assert app.export_mp3_button.states == ["normal"]
+    assert app.hq_button.states == ["normal"]
+    assert hq_calls == []
+
+
 def test_open_audio_with_missing_model_loads_without_auto_download(tmp_path, monkeypatch):
     audio_path = tmp_path / "recording.wav"
     audio_path.write_bytes(b"placeholder")
