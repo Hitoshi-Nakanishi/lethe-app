@@ -4,8 +4,8 @@ temp_dir = "/workspace/lethe-app/.docker-data/tmp"
 datasets_dir = "/workspace/lethe-app/.docker-data/datasets"
 
 [models]
-whisper_live_model = "medium"
-whisper_final_model = "large-v3"
+whisper_live_model = "efwkjn/faster-whisper-ja-760M"
+whisper_final_model = "efwkjn/faster-whisper-ja-760M"
 whisper_language = "ja"
 ollama_url = "http://ollama:11434"
 default_llm_model = "qwen3.5:9b"

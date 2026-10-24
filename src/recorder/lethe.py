@@ -15,7 +15,7 @@ Highlights:
 - Recording streams straight to a temp WAV (RAM stays flat for long
   meetings); a live VU meter confirms the mic is picking up sound.
 - Live transcribe gives a fast 5s-chunked preview; on stop, an accurate
-  full-file pass (Whisper large-v3) replaces it with timestamped segments.
+  full-file pass replaces it with timestamped segments.
 - Every transcript line carries a clickable [MM:SS] timestamp that seeks
   the built-in player, so a suspect line can be re-listened to.
 - Notes feed Whisper's initial_prompt and the Ollama refinement step.
@@ -1748,12 +1748,16 @@ class App:
                 return self._tr("model_status_missing_with_size", size=_format_gb(info["disk_gb"]))
             return self._tr("model_status_missing")
 
+        def label_for(model_id: str) -> str:
+            info = model_info(model_id)
+            return info["label"] if info else model_id
+
         self.hq_model_status.config(
             text=self._tr(
                 "model_install_status",
-                live_model=WHISPER_MODEL,
+                live_model=label_for(WHISPER_MODEL),
                 live_status=status_for(WHISPER_MODEL),
-                hq_model=self._hq_model,
+                hq_model=label_for(self._hq_model),
                 hq_status=status_for(self._hq_model),
             )
         )

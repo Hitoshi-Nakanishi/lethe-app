@@ -29,8 +29,8 @@ DEFAULT_CONFIG: dict = {
         "datasets_dir": "",
     },
     "models": {
-        "whisper_live_model": "medium",
-        "whisper_final_model": "large-v3",
+        "whisper_live_model": "efwkjn/faster-whisper-ja-760M",
+        "whisper_final_model": "efwkjn/faster-whisper-ja-760M",
         "whisper_language": "ja",
         "ollama_url": "http://localhost:11434",
         "default_llm_model": "qwen3.5:9b",

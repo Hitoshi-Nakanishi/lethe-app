@@ -14,11 +14,13 @@ file itself, which keeps memory flat for long recordings.
 can show per-segment timestamps and offer click-to-seek playback;
 ``segments_to_text`` flattens them for export or LLM post-processing.
 
-The default model is Whisper large-v3 -- the strongest multilingual model
-and currently the best ceiling for Japanese accuracy. Unlike distilled
-models, large-v3 benefits from ``condition_on_previous_text=True`` (it
-does not loop on its own output the way distil decoders do), so we keep
-cross-segment context on.
+The default model is ja-760M, a Japanese fine-tune of large-v3-turbo: its
+4-layer decoder makes it about twice as fast as large-v3 on CPU at similar
+Japanese accuracy. ``compute_type="auto"`` resolves to int8 on CPU,
+and it shares the cached model with the live preview. Cross-segment
+conditioning stays off: with ``condition_on_previous_text=True`` large-v3
+repeats earlier sentences and appends phantom phrases on long recordings,
+and the Japanese model is no more accurate with it.
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ import numpy as np
 from llm.transcribe_stream import VAD_PARAMS, format_initial_prompt, resample_to_16k
 from llm.whisper_models import get_cpu_fallback_model, get_whisper_model, should_fallback_to_cpu
 
-DEFAULT_MODEL = "large-v3"
+DEFAULT_MODEL = "efwkjn/faster-whisper-ja-760M"
 
 Segment = tuple[float, float, str]
 
@@ -42,8 +44,8 @@ def transcribe_segments(
     *,
     model_size: str = DEFAULT_MODEL,
     language: str = "ja",
-    beam_size: int = 10,
-    compute_type: str = "float32",
+    beam_size: int = 5,
+    compute_type: str = "auto",
     device: str = "auto",
     initial_prompt: str | None = None,
     preprocessor: Callable[[np.ndarray, int], np.ndarray] | None = None,
@@ -62,7 +64,7 @@ def transcribe_segments(
     kwargs: dict = {
         "language": language,
         "beam_size": beam_size,
-        "condition_on_previous_text": True,
+        "condition_on_previous_text": False,
         "vad_filter": True,
         "vad_parameters": VAD_PARAMS,
     }

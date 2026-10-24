@@ -76,8 +76,8 @@ MODEL_CATALOG: list[dict] = [
         "ram_gb": 5.0,
         "quality": 4,
         "speed": 3,
-        "note": "ライブ転写の既定。日本語の実用品質。",
-        "note_en": "Default for live transcripts; usable Japanese quality.",
+        "note": "日本語の実用品質。雑音に弱い。",
+        "note_en": "Usable Japanese quality; weak in noisy rooms.",
     },
     {
         "id": "large-v3",
@@ -86,8 +86,8 @@ MODEL_CATALOG: list[dict] = [
         "ram_gb": 10.0,
         "quality": 5,
         "speed": 1,
-        "note": "高精度の既定。日本語の最高品質。",
-        "note_en": "Default for HQ. Highest Japanese quality.",
+        "note": "多言語で最高精度。ja-760M の約 2 倍遅い。",
+        "note_en": "Highest multilingual accuracy; about 2x slower than ja-760M.",
     },
     {
         "id": "large-v3-turbo",
@@ -98,6 +98,16 @@ MODEL_CATALOG: list[dict] = [
         "speed": 4,
         "note": "large-v3 並の精度を高速化。RAM が許せば最良の選択。",
         "note_en": "Near-large-v3 quality, much faster. Best when RAM allows.",
+    },
+    {
+        "id": "efwkjn/faster-whisper-ja-760M",
+        "label": "ja-760M",
+        "disk_gb": 1.5,
+        "ram_gb": 6.0,
+        "quality": 5,
+        "speed": 4,
+        "note": "日本語専用 (large-v3-turbo 派生)。ライブと高精度の既定。",
+        "note_en": "Japanese-only large-v3-turbo fine-tune. Default for live and HQ.",
     },
 ]
 
@@ -111,6 +121,8 @@ def model_info(model_size: str) -> dict | None:
 
 def _hf_repo_id(model_size: str) -> str:
     """Map a faster-whisper model size to the Hugging Face repo it downloads."""
+    if "/" in model_size:
+        return model_size
     try:
         from faster_whisper.utils import _MODELS  # type: ignore[attr-defined]
     except Exception:

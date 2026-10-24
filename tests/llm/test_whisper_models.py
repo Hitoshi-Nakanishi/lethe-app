@@ -117,3 +117,16 @@ def test_final_transcribe_retries_on_cpu_fallback(monkeypatch):
     out = transcribe_segments(np.zeros(16000, dtype=np.float32), device="auto")
 
     assert out == [(0.0, 1.2, "fallback text")]
+
+
+def test_repo_id_models_download_from_their_own_repo():
+    repo = "efwkjn/faster-whisper-ja-760M"
+    assert whisper_models._hf_repo_id(repo) == repo
+    assert whisper_models.hf_cache_folder(repo).name == "models--efwkjn--faster-whisper-ja-760M"
+    assert whisper_models._hf_repo_id("medium") == "Systran/faster-whisper-medium"
+
+
+def test_default_hq_model_is_in_catalog():
+    from llm.transcribe_final import DEFAULT_MODEL
+
+    assert whisper_models.model_info(DEFAULT_MODEL)["label"] == "ja-760M"
