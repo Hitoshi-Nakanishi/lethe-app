@@ -20,7 +20,7 @@ Japanese accuracy. ``compute_type="auto"`` resolves to int8 on CPU,
 and it shares the cached model with the live preview. Cross-segment
 conditioning stays off: with ``condition_on_previous_text=True`` large-v3
 repeats earlier sentences and appends phantom phrases on long recordings,
-and the Japanese model is no more accurate with it.
+while for ja-760M it makes little difference.
 """
 
 from __future__ import annotations
