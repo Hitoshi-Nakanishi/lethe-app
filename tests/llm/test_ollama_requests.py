@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from llm import refine, summarize
+from llm import ollama, refine, summarize
 
 
 class _FakeResponse:
@@ -31,22 +31,31 @@ def _fake_client(seen: list[tuple[str, dict]]):
     return _FakeClient
 
 
-def test_summarize_disables_thinking(monkeypatch):
+def test_context_window_fits_transcript_and_reply():
+    assert ollama.context_window("") == ollama.MIN_CONTEXT
+    assert ollama.context_window("あ" * 13_000) == 32768
+    assert ollama.context_window("あ" * 1_000_000) == ollama.MAX_CONTEXT
+
+
+def test_summarize_disables_thinking_and_sizes_context(monkeypatch):
     seen: list[tuple[str, dict]] = []
-    monkeypatch.setattr(summarize.httpx, "Client", _fake_client(seen))
+    monkeypatch.setattr(ollama.httpx, "Client", _fake_client(seen))
 
     assert summarize.summarize("本文", "qwen3.5:9b", "http://localhost:11434/") == "結果"
     url, payload = seen[0]
     assert url == "http://localhost:11434/api/generate"
     assert payload["model"] == "qwen3.5:9b"
     assert payload["think"] is False
+    assert payload["options"] == {"num_ctx": ollama.context_window("本文")}
 
 
-def test_refine_disables_thinking(monkeypatch):
+def test_refine_uses_same_context_as_summarize(monkeypatch):
     seen: list[tuple[str, dict]] = []
-    monkeypatch.setattr(refine.httpx, "Client", _fake_client(seen))
+    monkeypatch.setattr(ollama.httpx, "Client", _fake_client(seen))
 
-    assert refine.refine_transcript("本文", "メモ") == "結果"
-    _, payload = seen[0]
-    assert payload["model"] == "qwen3.5:9b"
-    assert payload["think"] is False
+    transcript = "本文" * 5_000
+    assert refine.refine_transcript(transcript, "メモ") == "結果"
+    summarize.summarize(transcript, "qwen3.5:9b", "http://localhost:11434")
+    (_, refine_payload), (_, minutes_payload) = seen
+    assert refine_payload["think"] is False
+    assert refine_payload["options"] == minutes_payload["options"]

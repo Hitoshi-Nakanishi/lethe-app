@@ -1,4 +1,4 @@
-import httpx
+from llm.ollama import context_window, generate
 
 MINUTES_PROMPT = """\
 あなたは熟練の議事録作成者です。以下は会議や打ち合わせの文字起こしです。
@@ -31,11 +31,10 @@ MINUTES_PROMPT = """\
 
 def summarize(transcript: str, model: str, ollama_url: str, timeout: float = 600.0) -> str:
     """Send transcript to Ollama and return the minutes-style Markdown."""
-    prompt = MINUTES_PROMPT + transcript
-    url = ollama_url.rstrip("/") + "/api/generate"
-    payload = {"model": model, "prompt": prompt, "stream": False, "think": False}
-    with httpx.Client(timeout=timeout) as client:
-        resp = client.post(url, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-    return data.get("response", "").strip()
+    return generate(
+        MINUTES_PROMPT + transcript,
+        model=model,
+        ollama_url=ollama_url,
+        num_ctx=context_window(transcript),
+        timeout=timeout,
+    )

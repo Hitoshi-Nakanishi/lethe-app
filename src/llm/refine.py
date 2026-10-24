@@ -6,7 +6,7 @@ raw transcript so misheard terms match the spelling in the notes, but the
 content and order of the speech are preserved.
 """
 
-import httpx
+from llm.ollama import context_window, generate
 
 REFINE_PROMPT = """\
 あなたは音声認識結果の校正担当者です。以下は音声の自動文字起こしと、
@@ -42,10 +42,11 @@ def refine_transcript(
     if not transcript.strip() or not notes.strip():
         return transcript
     prompt = REFINE_PROMPT.format(notes=notes.strip(), transcript=transcript.strip())
-    url = ollama_url.rstrip("/") + "/api/generate"
-    payload = {"model": model, "prompt": prompt, "stream": False, "think": False}
-    with httpx.Client(timeout=timeout) as client:
-        resp = client.post(url, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-    return data.get("response", "").strip() or transcript
+    refined = generate(
+        prompt,
+        model=model,
+        ollama_url=ollama_url,
+        num_ctx=context_window(transcript),
+        timeout=timeout,
+    )
+    return refined or transcript
