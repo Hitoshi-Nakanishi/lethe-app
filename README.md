@@ -65,8 +65,7 @@ task download-models
 `task download-models` downloads both:
 
 - Whisper speech models for transcription: `medium`, `large-v3`
-- Ollama LLM models for correction/minutes: `llama3.1:8b`, `qwen2.5:7b`,
-  `mistral:7b`
+- Ollama LLM models for correction/minutes: `qwen3.5:9b`, `gemma4:12b`
 
 To download only one group:
 

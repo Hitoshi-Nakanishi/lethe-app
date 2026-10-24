@@ -17,7 +17,7 @@ tasks:
     summary: |
       Usage:
         task llm
-        task llm -- llama3.1:8b qwen2.5:7b
+        task llm -- qwen3.5:9b gemma4:12b
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/ollama_models.py pull {{.CLI_ARGS}}
 
@@ -33,7 +33,7 @@ tasks:
     summary: |
       Usage:
         task download-llm-model
-        task download-llm-model -- llama3.1:8b qwen2.5:7b
+        task download-llm-model -- qwen3.5:9b gemma4:12b
     cmds:
       - python src/scripts/uv_bootstrap.py run --no-sync python src/scripts/ollama_models.py pull {{.CLI_ARGS}}
 

@@ -33,7 +33,7 @@ def summarize(transcript: str, model: str, ollama_url: str, timeout: float = 600
     """Send transcript to Ollama and return the minutes-style Markdown."""
     prompt = MINUTES_PROMPT + transcript
     url = ollama_url.rstrip("/") + "/api/generate"
-    payload = {"model": model, "prompt": prompt, "stream": False}
+    payload = {"model": model, "prompt": prompt, "stream": False, "think": False}
     with httpx.Client(timeout=timeout) as client:
         resp = client.post(url, json=payload)
         resp.raise_for_status()

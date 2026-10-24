@@ -15,7 +15,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-o", "--output", type=Path, default=None, help="Output Markdown path. Defaults to <audio>.minutes.md.")
     p.add_argument("--whisper-model", default="base", help="Whisper model size (tiny/base/small/medium/large). Default: base.")
     p.add_argument("--language", default="ja", help="Spoken language. Default: ja.")
-    p.add_argument("--model", default="llama3.1:8b", help="Ollama model tag to use for summarization. Default: llama3.1:8b.")
+    p.add_argument("--model", default="qwen3.5:9b", help="Ollama model tag to use for summarization. Default: qwen3.5:9b.")
     p.add_argument(
         "--ollama-url", default="http://localhost:11434", help="Ollama HTTP base URL. Default: http://localhost:11434."
     )

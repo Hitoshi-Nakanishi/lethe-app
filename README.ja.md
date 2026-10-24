@@ -53,7 +53,7 @@ task download-models
 `task download-models` は次の両方をダウンロードします。
 
 - 文字起こし用の Whisper モデル: `medium`, `large-v3`
-- 校正と議事録生成用の Ollama LLM モデル: `llama3.1:8b`, `qwen2.5:7b`, `mistral:7b`
+- 校正と議事録生成用の Ollama LLM モデル: `qwen3.5:9b`, `gemma4:12b`
 
 片方だけダウンロードする場合:
 

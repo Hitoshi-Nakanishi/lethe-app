@@ -33,8 +33,8 @@ DEFAULT_CONFIG: dict = {
         "whisper_final_model": "large-v3",
         "whisper_language": "ja",
         "ollama_url": "http://localhost:11434",
-        "default_llm_model": "llama3.1:8b",
-        "llm_models": ["llama3.1:8b", "qwen2.5:7b", "mistral:7b"],
+        "default_llm_model": "qwen3.5:9b",
+        "llm_models": ["qwen3.5:9b", "gemma4:12b"],
     },
     "filenames": {
         "mp3_template": "{timestamp}_{meeting_name}.mp3",

@@ -42,7 +42,7 @@ task download-models
 `task download-models` は次の両方をダウンロードします。
 
 - 文字起こし用の Whisper モデル: `medium`, `large-v3`
-- 校正と議事録生成用の Ollama LLM モデル: `llama3.1:8b`, `qwen2.5:7b`, `mistral:7b`
+- 校正と議事録生成用の Ollama LLM モデル: `qwen3.5:9b`, `gemma4:12b`
 
 片方だけダウンロードする場合:
 
@@ -82,7 +82,7 @@ Ollama を入れてサービスを起動し、モデルを取得します。
 
 ```sh
 ollama serve
-task download-llm-model -- llama3.1:8b
+task download-llm-model -- qwen3.5:9b
 ```
 
 録音と文字起こしだけなら Ollama は不要です。メモで校正、議事録生成を使う場合に必要です。
@@ -98,7 +98,7 @@ UI の初期値も設定できます。これは `settings.json` に値が保存
 mic_capture = true
 noise_reduce = false
 live = false
-llm_model = "qwen2.5:7b"
+llm_model = "gemma4:12b"
 theme = "midnight"
 dark_mode = true
 language = "en"

@@ -65,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     subparsers.add_parser("list", help="List LLM model names configured in default.toml.")
     subparsers.add_parser("pull-configured", help="Download every configured Ollama LLM model.")
     pull = subparsers.add_parser("pull", help="Download configured LLM models, or the model names passed after it.")
-    pull.add_argument("models", nargs="*", help="Optional Ollama model names, for example llama3.1:8b qwen2.5:7b.")
+    pull.add_argument("models", nargs="*", help="Optional Ollama model names, for example qwen3.5:9b gemma4:12b.")
 
     args = parser.parse_args(argv)
     if args.command == "list":

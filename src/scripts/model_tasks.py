@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     whisper = subparsers.add_parser("whisper", help="Download configured Whisper models, or the model names passed after it.")
     whisper.add_argument("models", nargs="*", help="Optional Whisper model names, for example medium large-v3.")
     llm = subparsers.add_parser("llm", help="Download configured Ollama LLM models, or the model names passed after it.")
-    llm.add_argument("models", nargs="*", help="Optional Ollama model names, for example llama3.1:8b qwen2.5:7b.")
+    llm.add_argument("models", nargs="*", help="Optional Ollama model names, for example qwen3.5:9b gemma4:12b.")
 
     args = parser.parse_args(argv)
     if args.command in {None, "list"}:

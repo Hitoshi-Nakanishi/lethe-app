@@ -42,8 +42,7 @@ task download-models
 `task download-models` downloads both:
 
 - Whisper speech models for transcription: `medium`, `large-v3`
-- Ollama LLM models for correction/minutes: `llama3.1:8b`, `qwen2.5:7b`,
-  `mistral:7b`
+- Ollama LLM models for correction/minutes: `qwen3.5:9b`, `gemma4:12b`
 
 To download only one group:
 
@@ -119,7 +118,7 @@ To use containerized Ollama, start the optional profile and pull a model:
 
 ```sh
 docker compose --profile ollama up -d ollama
-docker compose --profile ollama exec ollama ollama pull llama3.1:8b
+docker compose --profile ollama exec ollama ollama pull qwen3.5:9b
 ```
 
 The Docker config points Lethe to `http://ollama:11434`. If you prefer an
@@ -134,7 +133,7 @@ by `task download-models`:
 
 ```sh
 ollama serve
-task download-llm-model -- llama3.1:8b
+task download-llm-model -- qwen3.5:9b
 ```
 
 Lethe can record and transcribe without Ollama. Correction and minutes
@@ -156,7 +155,7 @@ in `settings.json`; after that, the user's saved choice wins. For example:
 mic_capture = true
 noise_reduce = false
 live = false
-llm_model = "qwen2.5:7b"
+llm_model = "gemma4:12b"
 theme = "midnight"
 dark_mode = true
 language = "en"

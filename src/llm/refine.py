@@ -34,7 +34,7 @@ def refine_transcript(
     transcript: str,
     notes: str,
     *,
-    model: str = "llama3.1:8b",
+    model: str = "qwen3.5:9b",
     ollama_url: str = "http://localhost:11434",
     timeout: float = 300.0,
 ) -> str:
@@ -43,7 +43,7 @@ def refine_transcript(
         return transcript
     prompt = REFINE_PROMPT.format(notes=notes.strip(), transcript=transcript.strip())
     url = ollama_url.rstrip("/") + "/api/generate"
-    payload = {"model": model, "prompt": prompt, "stream": False}
+    payload = {"model": model, "prompt": prompt, "stream": False, "think": False}
     with httpx.Client(timeout=timeout) as client:
         resp = client.post(url, json=payload)
         resp.raise_for_status()
