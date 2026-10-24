@@ -2,7 +2,10 @@
 
 Not true streaming ASR. Audio is buffered and transcribed in fixed-length
 windows, so the user-visible latency is roughly ``chunk_seconds`` plus the
-model's inference time. ``vad_filter=True`` keeps silence from producing
+model's inference time. When inference is slower than real time (large
+models on CPU), the queued audio is transcribed together, up to
+``MAX_BATCH_SECONDS``, so captions arrive in larger steps instead of falling
+further behind. ``vad_filter=True`` keeps silence from producing
 hallucinated text.
 
 Two-tier output: each ``chunk_seconds`` window is transcribed immediately for
@@ -36,6 +39,10 @@ from typing import Any
 import numpy as np
 
 TARGET_SR = 16000
+
+# Longest backlog transcribed in one live call. Whisper pads every input to a
+# 30 s window, so this costs about as much as a single chunk.
+MAX_BATCH_SECONDS = 25.0
 
 # (kind, block_id, text) where kind is "live" or "polished".
 TranscriptEvent = tuple[str, int, str]
@@ -136,6 +143,7 @@ class StreamingTranscriber:
         self._last_emit = ""
         self._block_id = 0
         self._block_audio: list[np.ndarray] = []
+        self._block_chunks = 0
         self._polished_context = ""
 
     def start(self) -> None:
@@ -185,34 +193,43 @@ class StreamingTranscriber:
             self._polish_thread.start()
 
         chunk_samples = int(self._chunk_seconds * self._source_sr)
+        max_samples = max(chunk_samples, int(MAX_BATCH_SECONDS * self._source_sr) // chunk_samples * chunk_samples)
         min_flush_samples = self._source_sr // 2
         buf = np.zeros(0, dtype=np.float32)
         stopping = False
 
         while True:
-            item = self._queue.get()
-            if item is None:
-                stopping = True
-            else:
-                f32 = item.astype(np.float32).flatten() / 32768.0
-                buf = np.concatenate([buf, f32])
+            items = [self._queue.get()]
+            while items[-1] is not None:
+                try:
+                    items.append(self._queue.get_nowait())
+                except queue.Empty:
+                    break
+            for item in items:
+                if item is None:
+                    stopping = True
+                else:
+                    f32 = item.astype(np.float32).flatten() / 32768.0
+                    buf = np.concatenate([buf, f32])
 
             while len(buf) >= chunk_samples or (stopping and len(buf) >= min_flush_samples):
-                take = min(chunk_samples, len(buf))
+                take = min(max(chunk_samples, len(buf) - len(buf) % chunk_samples), max_samples, len(buf))
                 chunk = buf[:take]
                 buf = buf[take:]
-                self._collect_for_polish(self._transcribe(chunk))
+                self._collect_for_polish(self._transcribe(chunk), max(1, take // chunk_samples))
 
             if stopping:
                 return
 
-    def _collect_for_polish(self, resampled: np.ndarray | None) -> None:
+    def _collect_for_polish(self, resampled: np.ndarray | None, chunks: int = 1) -> None:
         if resampled is None or self._polish_block_chunks <= 0:
             return
         self._block_audio.append(resampled)
-        if len(self._block_audio) >= self._polish_block_chunks:
+        self._block_chunks += chunks
+        if self._block_chunks >= self._polish_block_chunks:
             self._polish_queue.put((self._block_id, np.concatenate(self._block_audio)))
             self._block_audio = []
+            self._block_chunks = 0
             self._block_id += 1
 
     def _notes(self) -> str:
@@ -304,5 +321,8 @@ class StreamingTranscriber:
         model = self._model
         if model is None:
             raise RuntimeError("Whisper model is not loaded")
-        segments, _ = model.transcribe(audio, **kwargs)
+        # Batched audio and polish blocks can span several 30 s windows;
+        # conditioning each window on the previous one makes Whisper repeat
+        # itself. Recent context already reaches the model via initial_prompt.
+        segments, _ = model.transcribe(audio, condition_on_previous_text=False, **kwargs)
         return " ".join(s.text.strip() for s in segments).strip()

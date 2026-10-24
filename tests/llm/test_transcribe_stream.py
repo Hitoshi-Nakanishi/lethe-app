@@ -113,3 +113,22 @@ def test_resample_to_16k_changes_length_proportionally():
     assert out.dtype == np.float32
     # 48 kHz -> 16 kHz is a 1/3 downsample, length should be ~16000.
     assert 15800 <= out.size <= 16200
+
+
+def test_backlog_is_transcribed_in_batches_up_to_limit():
+    t = StreamingTranscriber(lambda e: None, source_sr=1000, chunk_seconds=1.0, polish_block_chunks=0)
+    t._load_model = lambda: object()
+    seen: list[int] = []
+    t._transcribe = lambda chunk: seen.append(len(chunk))
+    for _ in range(35):
+        t._queue.put(np.zeros(1000, dtype=np.int16))
+    t._queue.put(None)
+    t._run()
+    assert seen == [25_000, 10_000]
+
+
+def test_collect_for_polish_counts_batched_chunks():
+    t = StreamingTranscriber(lambda e: None, polish_block_chunks=3)
+    t._collect_for_polish(np.zeros(30, dtype=np.float32), chunks=3)
+    block_id, audio = t._polish_queue.get_nowait()
+    assert (block_id, audio.size, t._block_id) == (0, 30, 1)
