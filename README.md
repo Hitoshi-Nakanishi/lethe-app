@@ -37,7 +37,7 @@ The workspace keeps audio and model settings in the left sidebar, recording
 and processing actions above the transcript, and editable notes beside it.
 Drag the dividers to resize the panes. Use the header's − / + controls or
 Ctrl/Cmd + − / + to change the text size; click the percentage or press
-Ctrl/Cmd + 0 to reset it. Theme and language remain available under ⚙.
+Ctrl/Cmd + 0 to reset it. ◐ switches between light and dark; theme and language remain available under ⚙.
 
 Docker is also supported for development and CI-like checks:
 

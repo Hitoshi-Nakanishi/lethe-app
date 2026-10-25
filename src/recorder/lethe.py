@@ -35,9 +35,10 @@ import sys
 import threading
 import time
 import tkinter as tk
+import tkinter.font as tkfont
 import wave
 import zipfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
@@ -67,14 +68,24 @@ from recorder.i18n import (
     text_for,
 )
 from recorder.theme import THEME_LABELS, THEMES, palette_for
-from recorder.ui import Switch, Tooltip, UiColors, WaveMeter
+from recorder.ui import PopupMenu, Switch, Tooltip, UiColors, WaveMeter, mix, paint_rounded, style_title_bar
 
 APP_NAME = "Lethe"
 APP_TAGLINE = "録音・文字起こし・議事録"
-DEFAULT_FONT_SIZE = 11
-MIN_FONT_SIZE = 9
-MAX_FONT_SIZE = 18
-UI_FONT_FAMILY = "Segoe UI" if sys.platform.startswith("win") else "SF Pro Text" if sys.platform == "darwin" else "Noto Sans"
+DEFAULT_ZOOM = 100
+MIN_ZOOM = 70
+MAX_ZOOM = 160
+ZOOM_STEP = 10
+# Body text in points at 100%; Tk on macOS draws a point as one pixel, elsewhere as 1.33.
+BASE_FONT_SIZE = 13 if sys.platform == "darwin" else 11
+# Tk draws each font from a single family, so it must carry both Japanese and Latin glyphs.
+if sys.platform == "darwin":
+    UI_FONT_CANDIDATES = ("Hiragino Sans", "Hiragino Kaku Gothic ProN", "Helvetica Neue")
+elif sys.platform.startswith("win"):
+    UI_FONT_CANDIDATES = ("Noto Sans JP", "Meiryo UI", "Yu Gothic UI", "Segoe UI")
+else:
+    UI_FONT_CANDIDATES = ("Noto Sans CJK JP", "Noto Sans JP", "Noto Sans")
+CORNER_RADIUS = 6
 
 SAMPLE_RATE = 44100
 CHANNELS = 1
@@ -93,23 +104,29 @@ OLLAMA_URL = _MODEL_CONFIG["ollama_url"]
 PLAYBACK_SR = 16000  # opened files / sessions are decoded to 16 kHz mono for playback
 
 # --- themes (ttk "clam" with app-owned palettes) ---
-BG = SURFACE = SURFACE_2 = BORDER = TEXT = TEXT_MUTED = ACCENT = ACCENT_DARK = ACCENT_SOFT = ""
+BG = SURFACE = SURFACE_2 = BORDER = BORDER_SOFT = TEXT = INK_SOFT = TEXT_MUTED = ""
+ACCENT = ACCENT_DARK = ACCENT_SOFT = ACCENT_LINE = HOVER = ""
 DANGER = DANGER_DARK = OK_GREEN = DISABLED_BG = DISABLED_FG = ""
 
 
 def _apply_palette(theme: str, dark_mode: bool) -> None:
-    global BG, SURFACE, SURFACE_2, BORDER, TEXT, TEXT_MUTED, ACCENT, ACCENT_DARK, ACCENT_SOFT
+    global BG, SURFACE, SURFACE_2, BORDER, BORDER_SOFT, TEXT, INK_SOFT, TEXT_MUTED
+    global ACCENT, ACCENT_DARK, ACCENT_SOFT, ACCENT_LINE, HOVER
     global DANGER, DANGER_DARK, OK_GREEN, DISABLED_BG, DISABLED_FG
     palette = palette_for(theme, dark_mode)
     BG = palette["bg"]
     SURFACE = palette["surface"]
     SURFACE_2 = palette["surface_2"]
     BORDER = palette["border"]
+    BORDER_SOFT = palette["border_soft"]
     TEXT = palette["text"]
+    INK_SOFT = palette["ink_soft"]
     TEXT_MUTED = palette["muted"]
     ACCENT = palette["accent"]
     ACCENT_DARK = palette["accent_dark"]
     ACCENT_SOFT = palette["accent_soft"]
+    ACCENT_LINE = palette["accent_line"]
+    HOVER = palette["hover"]
     DANGER = palette["danger"]
     DANGER_DARK = palette["danger_dark"]
     OK_GREEN = palette["ok"]
@@ -122,6 +139,7 @@ def _ui_colors() -> UiColors:
         "surface": SURFACE,
         "surface_2": SURFACE_2,
         "border": BORDER,
+        "hover": HOVER,
         "text": TEXT,
         "muted": TEXT_MUTED,
         "accent": ACCENT,
@@ -194,12 +212,18 @@ def describe_error(
     return f"{type(exc).__name__}: {exc}"
 
 
-def _coerce_font_size(value: object) -> int:
+def _coerce_zoom(value: object) -> int:
     try:
-        size = int(value)
+        zoom = int(value)
     except (TypeError, ValueError):
-        size = DEFAULT_FONT_SIZE
-    return max(MIN_FONT_SIZE, min(MAX_FONT_SIZE, size))
+        zoom = DEFAULT_ZOOM
+    return max(MIN_ZOOM, min(MAX_ZOOM, zoom))
+
+
+def _pick_font_family(available: Iterable[str]) -> str:
+    """Return the first installed face from ``UI_FONT_CANDIDATES``."""
+    installed = set(available)
+    return next((family for family in UI_FONT_CANDIDATES if family in installed), UI_FONT_CANDIDATES[-1])
 
 
 def _safe_filename_part(value: object, fallback: str = "meeting") -> str:
@@ -784,7 +808,11 @@ class App:
         self._dark_var = tk.BooleanVar(value=bool(self._settings.get("dark_mode")))
         saved_language = str(self._settings.get("language") or "ja")
         self._language_var = tk.StringVar(value=LANGUAGES.get(saved_language, LANGUAGES["ja"]))
-        self._font_size = _coerce_font_size(self._settings.get("font_size"))
+        self._zoom = _coerce_zoom(self._settings.get("zoom"))
+        self._font_family = _pick_font_family(tkfont.families(root))
+        self._images: dict[str, tk.PhotoImage] = {}
+        self._file_menu: tk.Menu | PopupMenu | None = None
+        self._section_labels: list[tuple[ttk.Label, str]] = []
         _apply_palette(self._theme_key(), self._dark_var.get())
         self._device_index: int | None = self._settings.get("device_index")
         self._output_device_id: str | None = self._settings.get("output_device_id") or None
@@ -796,7 +824,7 @@ class App:
         root.title(f"{APP_NAME} — {self._tr('tagline')}")
         root.geometry(self._settings.get("geometry") or "1480x860")
         root.minsize(1060, 720)
-        root.configure(background=BG)
+        root.configure(background=SURFACE)
 
         self._configure_style()
         self._build_menu()
@@ -804,15 +832,16 @@ class App:
         self._build_status_bar()
 
         main = ttk.PanedWindow(root, orient="horizontal")
-        main.pack(side="top", fill="both", expand=True, padx=10, pady=(6, 6))
-        controls = ttk.Frame(main, style="Card.TFrame")
+        main.pack(side="top", fill="both", expand=True)
+        controls = ttk.Frame(main)
         workspace = ttk.Frame(main)
-        toolbar = ttk.Frame(workspace, style="Card.TFrame")
-        toolbar.pack(fill="x", pady=(0, 6))
+        toolbar = ttk.Frame(workspace)
+        toolbar.pack(fill="x")
+        ttk.Separator(workspace).pack(fill="x")
         editors = ttk.PanedWindow(workspace, orient="horizontal")
         editors.pack(fill="both", expand=True)
-        transcript_panel = ttk.Frame(editors, style="Card.TFrame")
-        notes_panel = ttk.Frame(editors, style="Card.TFrame")
+        transcript_panel = ttk.Frame(editors)
+        notes_panel = ttk.Frame(editors)
         editors.add(transcript_panel, weight=2)
         editors.add(notes_panel, weight=1)
         main.add(controls, weight=0)
@@ -833,6 +862,7 @@ class App:
         self._bind_shortcuts()
 
         root.protocol("WM_DELETE_WINDOW", self._on_close)
+        self._style_title_bar(root)
         self.root.after(100, self._poll_queues)
 
     # ---------- styling / menu / header ----------
@@ -843,143 +873,71 @@ class App:
             style.theme_use("clam")
         except tk.TclError:
             pass
+        for name, delta in (("TkDefaultFont", 0), ("TkTextFont", 0), ("TkMenuFont", 0), ("TkTooltipFont", -1)):
+            tkfont.nametofont(name).configure(family=self._font_family, size=self._font(delta)[1])
+        self._paint_controls(style)
 
-        style.configure(".", background=BG, foreground=TEXT, font=self._font())
-        style.configure("TFrame", background=BG)
-        style.configure("Card.TFrame", background=SURFACE)
-        style.configure("Header.TFrame", background=SURFACE)
-        style.configure("TLabel", background=BG, foreground=TEXT)
-        style.configure("Card.TLabel", background=SURFACE, foreground=TEXT)
-        style.configure("Title.TLabel", background=SURFACE, foreground=TEXT, font=self._font(1, "bold"))
-        style.configure("Hint.TLabel", background=SURFACE, foreground=TEXT_MUTED, font=self._font(-1))
-        style.configure("Workflow.TLabel", background=SURFACE, foreground=ACCENT, font=self._font(-1))
-        style.configure("Wordmark.TLabel", background=SURFACE, foreground=TEXT, font=self._font(3, "bold"))
-        style.configure("Tagline.TLabel", background=SURFACE, foreground=TEXT_MUTED, font=self._font())
-        style.configure("Timer.TLabel", background=SURFACE, foreground=TEXT, font=self._font(15, "bold"))
-        style.configure("Status.TLabel", background=BG, foreground=TEXT, font=self._font(1), padding=(10, 3))
-        style.configure("StatusBar.TFrame", background=SURFACE)
-        style.configure("StatusBarHint.TLabel", background=SURFACE, foreground=TEXT_MUTED, font=self._font(-1))
-        style.configure("StatusTimer.TLabel", background=SURFACE, foreground=TEXT, font=self._font(6, "bold"))
+        style.configure(".", background=SURFACE, foreground=TEXT, font=self._font())
+        style.configure("TFrame", background=SURFACE)
+        style.configure("TLabel", background=SURFACE, foreground=TEXT)
+        style.configure("Title.TLabel", font=self._font(1, "bold"))
+        style.configure("Section.TLabel", foreground=TEXT_MUTED, font=self._font(-1, "bold"))
+        style.configure("Hint.TLabel", foreground=INK_SOFT, font=self._font(-1))
+        style.configure("Meta.TLabel", foreground=TEXT_MUTED, font=self._font(-1))
+        style.configure("Workflow.TLabel", foreground=ACCENT, font=self._font(-1))
+        style.configure("Wordmark.TLabel", font=self._font(3, "bold"))
+        style.configure("Tagline.TLabel", foreground=TEXT_MUTED, font=self._font(-1))
+        style.configure("StatusTimer.TLabel", font=self._font(7, "bold"))
+        style.configure("TPanedwindow", background=SURFACE)
+
+        style.configure("TButton", foreground=TEXT, padding=(12, 5), width=0, font=self._font())
+        style.map("TButton", foreground=[("disabled", DISABLED_FG), ("pressed", ACCENT)])
+        for name in ("Accent", "Danger"):
+            style.configure(f"{name}.TButton", foreground="#ffffff", padding=(16, 6), font=self._font(0, "bold"))
+            style.map(f"{name}.TButton", foreground=[("disabled", DISABLED_FG)])
+        style.configure("Step.TButton", foreground=TEXT, padding=(12, 6), font=self._font(0, "bold"))
+        style.map("Step.TButton", foreground=[("disabled", DISABLED_FG), ("pressed", "#ffffff"), ("active", "#ffffff")])
+        style.configure("Ghost.TButton", foreground=INK_SOFT, padding=(8, 4), font=self._font())
+        style.map("Ghost.TButton", foreground=[("disabled", DISABLED_FG), ("pressed", ACCENT), ("active", TEXT)])
 
         style.configure(
-            "TButton",
-            background=SURFACE,
+            "TCombobox",
             foreground=TEXT,
-            bordercolor=BORDER,
-            borderwidth=1,
-            relief="flat",
-            focuscolor=SURFACE,
-            padding=(10, 5),
-            font=self._font(),
-        )
-        style.map(
-            "TButton",
-            background=[("pressed", SURFACE_2), ("active", ACCENT_SOFT), ("disabled", DISABLED_BG)],
-            foreground=[("disabled", DISABLED_FG)],
-            bordercolor=[("disabled", DISABLED_BG)],
-        )
-        for name, base, dark in (("Accent", ACCENT_DARK, ACCENT_DARK), ("Danger", DANGER, DANGER_DARK)):
-            style.configure(
-                f"{name}.TButton",
-                background=base,
-                foreground="#ffffff",
-                bordercolor=base,
-                borderwidth=1,
-                relief="flat",
-                focuscolor=base,
-                padding=(12, 6),
-                font=self._font(1, "bold"),
-            )
-            style.map(
-                f"{name}.TButton",
-                background=[("pressed", dark), ("active", dark), ("disabled", DISABLED_BG)],
-                foreground=[("disabled", DISABLED_FG)],
-                bordercolor=[("disabled", DISABLED_BG)],
-            )
-        style.configure(
-            "Ghost.TButton",
             background=SURFACE,
-            foreground=TEXT_MUTED,
+            fieldbackground=SURFACE,
             bordercolor=SURFACE,
-            borderwidth=0,
-            relief="flat",
-            focuscolor=SURFACE,
-            padding=(6, 4),
-            font=self._font(2),
-        )
-        style.map(
-            "Ghost.TButton",
-            background=[("pressed", SURFACE_2), ("active", ACCENT_SOFT), ("disabled", SURFACE)],
-            foreground=[("active", ACCENT), ("disabled", DISABLED_FG)],
-            bordercolor=[("active", SURFACE_2)],
-        )
-        # Numbered workflow buttons: accent-tinted so they read as the main path.
-        style.configure(
-            "Step.TButton",
-            background=ACCENT_SOFT,
-            foreground=TEXT,
-            bordercolor=ACCENT_SOFT,
-            borderwidth=1,
-            relief="flat",
-            focuscolor=ACCENT_SOFT,
-            padding=(10, 5),
-            font=self._font(0, "bold"),
-        )
-        style.map(
-            "Step.TButton",
-            background=[("pressed", ACCENT_DARK), ("active", ACCENT_DARK), ("disabled", DISABLED_BG)],
-            foreground=[("pressed", "#ffffff"), ("active", "#ffffff"), ("disabled", DISABLED_FG)],
-            bordercolor=[("disabled", DISABLED_BG)],
-        )
-
-        style.configure("TSeparator", background=BORDER)
-        style.configure(
-            "TCombobox",
-            background=SURFACE_2,
-            fieldbackground=SURFACE_2,
-            foreground=TEXT,
-            bordercolor=BORDER,
-            lightcolor=BORDER,
-            darkcolor=BORDER,
-            arrowcolor=ACCENT,
-            selectbackground=ACCENT_SOFT,
+            lightcolor=SURFACE,
+            darkcolor=SURFACE,
+            arrowcolor=TEXT_MUTED,
+            arrowsize=14,
+            selectbackground=SURFACE,
             selectforeground=TEXT,
-            relief="flat",
-            borderwidth=1,
-            padding=(9, 6),
-            arrowsize=12,
-            font=self._font(),
+            padding=(9, 5),
         )
         style.map(
             "TCombobox",
-            background=[
-                ("disabled", DISABLED_BG),
-                ("pressed", SURFACE),
-                ("active", SURFACE),
-                ("readonly", SURFACE_2),
-            ],
-            fieldbackground=[
-                ("disabled", DISABLED_BG),
-                ("pressed", SURFACE),
-                ("active", SURFACE),
-                ("readonly", SURFACE_2),
-            ],
             foreground=[("disabled", DISABLED_FG), ("readonly", TEXT)],
-            bordercolor=[("disabled", DISABLED_BG), ("focus", ACCENT), ("active", ACCENT)],
-            lightcolor=[("disabled", DISABLED_BG), ("focus", ACCENT), ("active", ACCENT)],
-            darkcolor=[("disabled", DISABLED_BG), ("focus", ACCENT_DARK), ("active", ACCENT_DARK)],
-            arrowcolor=[("disabled", DISABLED_FG), ("pressed", ACCENT_DARK), ("active", ACCENT_DARK), ("readonly", ACCENT)],
+            background=[("disabled", SURFACE_2)],
+            bordercolor=[("disabled", SURFACE_2)],
+            lightcolor=[("disabled", SURFACE_2)],
+            darkcolor=[("disabled", SURFACE_2)],
+            arrowcolor=[("disabled", DISABLED_FG), ("active", ACCENT)],
+            fieldbackground=[("readonly", SURFACE)],
+            selectbackground=[("readonly", SURFACE)],
+            selectforeground=[("readonly", TEXT)],
         )
-        self.root.option_add("*TCombobox*Listbox.background", SURFACE_2)
+        self.root.option_add("*TCombobox*Listbox.background", SURFACE)
         self.root.option_add("*TCombobox*Listbox.foreground", TEXT)
         self.root.option_add("*TCombobox*Listbox.selectBackground", ACCENT_SOFT)
         self.root.option_add("*TCombobox*Listbox.selectForeground", TEXT)
         self.root.option_add("*TCombobox*Listbox.activeStyle", "none")
-        self.root.option_add("*TCombobox*Listbox.borderWidth", 1)
+        self.root.option_add("*TCombobox*Listbox.borderWidth", 0)
         self.root.option_add("*TCombobox*Listbox.highlightThickness", 1)
         self.root.option_add("*TCombobox*Listbox.highlightBackground", BORDER)
-        self.root.option_add("*TCombobox*Listbox.highlightColor", ACCENT)
+        self.root.option_add("*TCombobox*Listbox.highlightColor", BORDER)
         self.root.option_add("*TCombobox*Listbox.font", self._font())
+        for name in ("Vertical.TScrollbar", "Idle.Vertical.TScrollbar"):
+            style.configure(name, troughcolor=SURFACE, background=SURFACE, bordercolor=SURFACE)
         style.configure(
             "Lethe.Horizontal.TProgressbar",
             background=ACCENT,
@@ -988,7 +946,113 @@ class App:
             lightcolor=ACCENT,
             darkcolor=ACCENT_DARK,
         )
-        style.configure("TPanedwindow", background=BG)
+
+    def _paint_controls(self, style: ttk.Style) -> None:
+        """Paint the rounded control, scrollbar and divider images for the palette.
+
+        ttk elements keep pointing at the same images, so repainting restyles every widget in place.
+        """
+        primary_hover = mix(ACCENT_DARK, "#000000", 0.14)
+        primary_pressed = mix(primary_hover, "#000000", 0.14)
+        danger = DANGER_DARK if self._dark_var.get() else DANGER
+        danger_hover = mix(danger, "#000000", 0.14)
+        danger_pressed = mix(danger_hover, "#000000", 0.14)
+        variants: dict[str, dict[str, tuple[str, str]]] = {
+            "Button": {
+                "normal": (SURFACE, BORDER),
+                "disabled": (SURFACE, BORDER),
+                "pressed": (ACCENT_SOFT, ACCENT_LINE),
+                "active": (HOVER, BORDER),
+            },
+            "Accent": {
+                "normal": (ACCENT_DARK, ACCENT_DARK),
+                "disabled": (DISABLED_BG, DISABLED_BG),
+                "pressed": (primary_pressed, primary_pressed),
+                "active": (primary_hover, primary_hover),
+            },
+            "Danger": {
+                "normal": (danger, danger),
+                "disabled": (DISABLED_BG, DISABLED_BG),
+                "pressed": (danger_pressed, danger_pressed),
+                "active": (danger_hover, danger_hover),
+            },
+            "Step": {
+                "normal": (ACCENT_SOFT, ACCENT_SOFT),
+                "disabled": (SURFACE, BORDER),
+                "pressed": (primary_hover, primary_hover),
+                "active": (ACCENT_DARK, ACCENT_DARK),
+            },
+            "Ghost": {
+                "normal": (SURFACE, SURFACE),
+                "disabled": (SURFACE, SURFACE),
+                "pressed": (ACCENT_SOFT, ACCENT_SOFT),
+                "active": (HOVER, HOVER),
+            },
+            "Field": {
+                "normal": (SURFACE, BORDER),
+                "disabled": (SURFACE_2, BORDER_SOFT),
+                "focus": (SURFACE, ACCENT),
+                "active": (SURFACE, ACCENT_LINE),
+            },
+        }
+        size = CORNER_RADIUS * 2 + 4
+        for variant, states in variants.items():
+            for state, (fill, outline) in states.items():
+                image = self._image(f"{variant}.{state}", size, size)
+                paint_rounded(image, fill=fill, outline=outline, background=SURFACE, radius=CORNER_RADIUS)
+        thumb = mix(SURFACE, TEXT_MUTED, 0.45)
+        for state, color in (("normal", thumb), ("active", TEXT_MUTED), ("idle", SURFACE)):
+            paint_rounded(self._image(f"Thumb.{state}", 8, 24), fill=color, outline=color, background=SURFACE, radius=4)
+        self._image("Sash", 9, 2).put(" ".join(["{" + " ".join([SURFACE] * 4 + [BORDER] + [SURFACE] * 4) + "}"] * 2))
+        self._image("Rule", 1, 1).put(BORDER, to=(0, 0, 1, 1))
+
+        if "Lethe.Button.border" not in style.element_names():
+            for variant, states in variants.items():
+                state_images = [(state, self._images[f"{variant}.{state}"]) for state in states if state != "normal"]
+                style.element_create(
+                    f"Lethe.{variant}.border",
+                    "image",
+                    self._images[f"{variant}.normal"],
+                    *state_images,
+                    border=CORNER_RADIUS + 1,
+                    padding=2,
+                    sticky="nsew",
+                )
+            style.element_create(
+                "Lethe.thumb", "image", self._images["Thumb.normal"], ("active", self._images["Thumb.active"]), border=4
+            )
+            style.element_create("Lethe.idle-thumb", "image", self._images["Thumb.idle"], border=4)
+            style.element_create("Lethe.sash", "image", self._images["Sash"], border=(4, 0, 4, 0), sticky="nsew")
+            style.element_create("Lethe.rule", "image", self._images["Rule"], sticky="nsew")
+        for name, variant in (
+            ("TButton", "Button"),
+            ("Accent.TButton", "Accent"),
+            ("Danger.TButton", "Danger"),
+            ("Step.TButton", "Step"),
+            ("Ghost.TButton", "Ghost"),
+        ):
+            label = [("Button.padding", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})]
+            style.layout(name, [(f"Lethe.{variant}.border", {"sticky": "nswe", "children": label})])
+        field = [
+            ("Combobox.downarrow", {"side": "right", "sticky": "ns"}),
+            ("Combobox.padding", {"expand": "1", "sticky": "nswe", "children": [("Combobox.textarea", {"sticky": "nswe"})]}),
+        ]
+        style.layout("TCombobox", [("Lethe.Field.border", {"sticky": "nswe", "children": field})])
+        for name, thumb_element in (("Vertical.TScrollbar", "Lethe.thumb"), ("Idle.Vertical.TScrollbar", "Lethe.idle-thumb")):
+            thumb_layout = [(thumb_element, {"expand": "1", "sticky": "nswe"})]
+            style.layout(name, [("Vertical.Scrollbar.trough", {"sticky": "ns", "children": thumb_layout})])
+        style.layout("Vertical.Sash", [("Lethe.sash", {"sticky": "nswe"})])
+        for name in ("Horizontal.TSeparator", "Vertical.TSeparator"):
+            style.layout(name, [("Lethe.rule", {"sticky": "nswe"})])
+
+    def _image(self, name: str, width: int, height: int) -> tk.PhotoImage:
+        image = self._images.get(name)
+        if image is None:
+            image = self._images[name] = tk.PhotoImage(master=self.root, width=width, height=height)
+        return image
+
+    def _style_title_bar(self, window: tk.Tk | tk.Toplevel) -> None:
+        style_title_bar(window, caption=SURFACE, text=TEXT, border=BORDER, dark=self._dark_var.get())
 
     def _theme_key(self) -> str:
         return THEME_LABELS.get(self._theme_var.get(), "midnight")
@@ -1000,16 +1064,25 @@ class App:
         return text_for(self._language_code(), key, **kwargs)
 
     def _font(self, delta: int = 0, weight: str | None = None) -> tuple[str, int] | tuple[str, int, str]:
-        size = max(MIN_FONT_SIZE, self._font_size + delta)
-        return (UI_FONT_FAMILY, size, weight) if weight else (UI_FONT_FAMILY, size)
+        size = max(8, round((BASE_FONT_SIZE + delta) * self._zoom / 100))
+        return (self._font_family, size, weight) if weight else (self._font_family, size)
 
     def _on_theme_change(self, _event=None) -> None:
         _apply_palette(self._theme_key(), self._dark_var.get())
-        self.root.configure(background=BG)
+        self.root.configure(background=SURFACE)
         self._configure_style()
+        self._build_menu()
         self._restyle_direct_fonts()
         self._restyle_text_widgets()
         self._set_status(self.status["text"], self._status_kind)
+        for window in (self.root, self._settings_window):
+            if window is not None:
+                window.configure(background=SURFACE)
+                self._style_title_bar(window)
+
+    def _toggle_dark_mode(self) -> None:
+        self._dark_var.set(not self._dark_var.get())
+        self._on_theme_change()
 
     def _on_language_change(self, _event=None) -> None:
         self._build_menu()
@@ -1017,7 +1090,12 @@ class App:
 
     def _apply_language(self) -> None:
         self.root.title(f"{APP_NAME} — {self._tr('tagline')}")
-        self.tagline_label.config(text=f"  {self._tr('tagline')}")
+        self.tagline_label.config(text=self._tr("tagline"))
+        if self.file_button is not None:
+            self.file_button.config(text=self._tr("file_menu"))
+        self._theme_tooltip.text = self._tr("toggle_theme")
+        for label, key in self._section_labels:
+            label.config(text=self._tr(key))
         self.input_label.config(text=self._tr("input"))
         self.output_label.config(text=self._tr("output"))
         self.refresh_button.config(text="↻")
@@ -1069,14 +1147,14 @@ class App:
             if widget is not None:
                 widget.configure(
                     font=self._font(1),
-                    background=SURFACE_2,
+                    background=SURFACE,
                     foreground=TEXT,
                     insertbackground=ACCENT,
-                    highlightbackground=BORDER,
-                    highlightcolor=ACCENT,
                     selectbackground=ACCENT_SOFT,
                     selectforeground=TEXT,
                 )
+        if hasattr(self, "transcript"):
+            self.transcript.tag_configure("seek", foreground=ACCENT)
         if hasattr(self, "wave"):
             self.wave.restyle()
         for widget_name in ("dark_check", "mic_check", "system_check", "nr_check", "live_check"):
@@ -1087,7 +1165,7 @@ class App:
 
     def _restyle_direct_fonts(self) -> None:
         if hasattr(self, "status_icon"):
-            self.status_icon.configure(font=self._font(-2, "bold"))
+            self.status_icon.configure(font=self._font(-1))
         if hasattr(self, "status"):
             self.status.configure(font=self._font(0, "bold"))
         for widget_name in ("language_combo", "theme_combo", "device_combo", "output_combo", "llm_combo", "hq_model_combo"):
@@ -1100,8 +1178,15 @@ class App:
                 pass
 
     def _build_menu(self) -> None:
-        menubar = tk.Menu(self.root)
-        file_menu = tk.Menu(menubar, tearoff=False)
+        if isinstance(self._file_menu, tk.Menu):
+            self._file_menu.destroy()
+        # macOS shows menus in the system menu bar; elsewhere the app bar's File button opens a themed list.
+        if sys.platform == "darwin":
+            menubar = tk.Menu(self.root)
+            file_menu: tk.Menu | PopupMenu = tk.Menu(menubar, tearoff=False)
+        else:
+            menubar = None
+            file_menu = PopupMenu(self.root, colors=_ui_colors, font=self._font)
         file_menu.add_command(label=self._tr("open_audio_menu"), command=self.open_audio, accelerator="Cmd/Ctrl+O")
         file_menu.add_separator()
         file_menu.add_command(label=self._tr("open_session_menu"), command=self.open_session)
@@ -1110,49 +1195,55 @@ class App:
         file_menu.add_separator()
         file_menu.add_command(label=self._tr("save_transcript_menu"), command=self.export_transcript, accelerator="Cmd/Ctrl+S")
         file_menu.add_command(label=self._tr("save_mp3_menu"), command=self.export_mp3)
-        menubar.add_cascade(label=self._tr("file_menu"), menu=file_menu)
-        self.root.config(menu=menubar)
+        self._file_menu = file_menu
+        if menubar is not None:
+            menubar.add_cascade(label=self._tr("file_menu"), menu=file_menu)
+            self.root.config(menu=menubar)
+
+    def _post_file_menu(self) -> None:
+        if isinstance(self._file_menu, PopupMenu) and self.file_button is not None:
+            x = self.file_button.winfo_rootx()
+            y = self.file_button.winfo_rooty() + self.file_button.winfo_height() + 4
+            self._file_menu.post(x, y)
 
     def _build_header(self) -> None:
-        header = ttk.Frame(self.root, style="Header.TFrame")
+        header = ttk.Frame(self.root, padding=(PAD_X, 6, 10, 6))
         header.pack(side="top", fill="x")
-        inner = ttk.Frame(header, style="Header.TFrame")
-        inner.pack(fill="x", padx=PAD_X, pady=6)
-        inner.columnconfigure(1, weight=1)
-        ttk.Label(inner, text=APP_NAME, style="Wordmark.TLabel").grid(row=0, column=0, sticky="w")
-        self.tagline_label = ttk.Label(inner, text=f"  {self._tr('tagline')}", style="Tagline.TLabel")
-        self.tagline_label.grid(row=0, column=1, sticky="w", padx=(4, 12), pady=(2, 0))
-        self.settings_button = ttk.Button(inner, text="⚙", width=3, command=self.open_settings, style="Ghost.TButton")
-        zoom = ttk.Frame(inner, style="Header.TFrame")
-        zoom.grid(row=0, column=2, sticky="e")
-        ttk.Button(zoom, text="−", width=3, command=self._decrease_font_size, style="Ghost.TButton").pack(side="left")
-        self.zoom_button = ttk.Button(
-            zoom,
-            text=f"{round(self._font_size / DEFAULT_FONT_SIZE * 100)}%",
-            width=5,
-            command=self._reset_font_size,
-            style="Ghost.TButton",
-        )
+        ttk.Separator(self.root).pack(side="top", fill="x")
+        header.columnconfigure(2, weight=1)
+        ttk.Label(header, text=APP_NAME, style="Wordmark.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 10))
+        self.file_button: ttk.Button | None = None
+        if sys.platform != "darwin":
+            self.file_button = ttk.Button(
+                header, text=self._tr("file_menu"), command=self._post_file_menu, style="Ghost.TButton"
+            )
+            self.file_button.grid(row=0, column=1, sticky="w", padx=(0, 10))
+        self.tagline_label = ttk.Label(header, text=self._tr("tagline"), style="Tagline.TLabel")
+        self.tagline_label.grid(row=0, column=2, sticky="w")
+        zoom = ttk.Frame(header)
+        zoom.grid(row=0, column=3, sticky="e")
+        ttk.Button(zoom, text="−", width=2, command=self._zoom_out, style="Ghost.TButton").pack(side="left")
+        self.zoom_button = ttk.Button(zoom, text=f"{self._zoom}%", width=5, command=self._reset_zoom, style="Ghost.TButton")
         self.zoom_button.pack(side="left")
-        ttk.Button(zoom, text="+", width=3, command=self._increase_font_size, style="Ghost.TButton").pack(side="left")
-        self.settings_button.grid(row=0, column=3, sticky="e", padx=(8, 0))
+        ttk.Button(zoom, text="+", width=2, command=self._zoom_in, style="Ghost.TButton").pack(side="left")
+        self.theme_button = ttk.Button(header, text="◐", width=2, command=self._toggle_dark_mode, style="Ghost.TButton")
+        self.theme_button.grid(row=0, column=4, sticky="e", padx=(8, 0))
+        self._theme_tooltip = Tooltip(self.theme_button, self._tr("toggle_theme"))
+        self.settings_button = ttk.Button(header, text="⚙", width=2, command=self.open_settings, style="Ghost.TButton")
+        self.settings_button.grid(row=0, column=5, sticky="e", padx=(2, 0))
         self._settings_tooltip = Tooltip(self.settings_button, self._tr("settings"))
-        inner.bind("<Configure>", lambda event: self.tagline_label.configure(wraplength=max(120, event.width // 2)))
 
     def _build_status_bar(self) -> None:
-        bar = ttk.Frame(self.root, style="StatusBar.TFrame")
+        bar = ttk.Frame(self.root, padding=(PAD_X, 6, PAD_X, 8))
         bar.pack(side="bottom", fill="x")
-        self._status_bar_top = tk.Frame(bar, bd=0, height=1, background=BORDER)
-        self._status_bar_top.pack(side="top", fill="x")
-        inner = ttk.Frame(bar, style="StatusBar.TFrame")
-        inner.pack(side="top", fill="x", padx=PAD_X, pady=(6, 10))
-        inner.columnconfigure(2, weight=1)
+        ttk.Separator(self.root).pack(side="bottom", fill="x")
+        bar.columnconfigure(2, weight=1)
 
-        self.status_banner = tk.Frame(inner, bd=0, highlightthickness=1)
-        self.status_banner.grid(row=0, column=0, sticky="w", ipadx=8, ipady=3)
-        self.status_icon = tk.Label(self.status_banner, text="OK", width=3, anchor="center", font=self._font(-2, "bold"))
-        self.status_icon.pack(side="left", padx=(0, 7))
-        self.status = tk.Label(self.status_banner, text=self._tr("status_ready"), font=self._font(0, "bold"))
+        self.status_banner = ttk.Frame(bar)
+        self.status_banner.grid(row=0, column=0, sticky="w")
+        self.status_icon = tk.Label(self.status_banner, text="●", bd=0, font=self._font(-1))
+        self.status_icon.pack(side="left", padx=(0, 6))
+        self.status = tk.Label(self.status_banner, text=self._tr("status_ready"), bd=0, font=self._font(0, "bold"))
         self.status.pack(side="left")
         self.cancel_download_button = ttk.Button(
             self.status_banner,
@@ -1160,11 +1251,11 @@ class App:
             command=self._cancel_active_download,
         )
 
-        self.meter_caption = ttk.Label(inner, text="", style="StatusBarHint.TLabel")
-        self.meter_caption.grid(row=0, column=1, sticky="w", padx=(12, 8))
-        self.wave = WaveMeter(inner, colors=_ui_colors, height=32)
+        self.meter_caption = ttk.Label(bar, text="", style="Meta.TLabel")
+        self.meter_caption.grid(row=0, column=1, sticky="w", padx=(14, 10))
+        self.wave = WaveMeter(bar, colors=_ui_colors, height=28)
         self.wave.grid(row=0, column=2, sticky="ew")
-        self.timer = ttk.Label(inner, text="00:00", style="StatusTimer.TLabel")
+        self.timer = ttk.Label(bar, text="00:00", style="StatusTimer.TLabel")
         self.timer.grid(row=0, column=3, sticky="e", padx=(14, 0))
         self._set_status(self._tr("status_ready"), "ready")
 
@@ -1186,18 +1277,18 @@ class App:
         win = tk.Toplevel(self.root)
         self._settings_window = win
         win.title(self._tr("settings_title"))
-        win.configure(background=BG)
+        win.configure(background=SURFACE)
         win.resizable(False, False)
         win.transient(self.root)
         x = self.root.winfo_rootx() + max(40, (self.root.winfo_width() - 360) // 2)
         y = self.root.winfo_rooty() + 80
         win.geometry(f"+{x}+{y}")
 
-        body = ttk.Frame(win, style="Card.TFrame")
-        body.pack(side="top", fill="both", expand=True, padx=PAD_X, pady=(PAD_Y, 6))
+        body = ttk.Frame(win, padding=(20, 18, 20, 6))
+        body.pack(side="top", fill="both", expand=True)
         body.columnconfigure(1, weight=1)
 
-        self.theme_label_widget = ttk.Label(body, text=self._tr("theme_label"), style="Card.TLabel")
+        self.theme_label_widget = ttk.Label(body, text=self._tr("theme_label"))
         self.theme_label_widget.grid(row=0, column=0, sticky="w", padx=(0, 16), pady=(0, 10))
         self.theme_combo = ttk.Combobox(
             body,
@@ -1210,7 +1301,7 @@ class App:
         self.theme_combo.grid(row=0, column=1, sticky="ew", pady=(0, 10))
         self.theme_combo.bind("<<ComboboxSelected>>", self._on_theme_change)
 
-        self.language_label_widget = ttk.Label(body, text=self._tr("language_label"), style="Card.TLabel")
+        self.language_label_widget = ttk.Label(body, text=self._tr("language_label"))
         self.language_label_widget.grid(row=1, column=0, sticky="w", padx=(0, 16), pady=(0, 10))
         self.language_combo = ttk.Combobox(
             body,
@@ -1223,7 +1314,7 @@ class App:
         self.language_combo.grid(row=1, column=1, sticky="ew", pady=(0, 10))
         self.language_combo.bind("<<ComboboxSelected>>", self._on_language_change)
 
-        self.dark_label_widget = ttk.Label(body, text=self._tr("dark_label"), style="Card.TLabel")
+        self.dark_label_widget = ttk.Label(body, text=self._tr("dark_label"))
         self.dark_label_widget.grid(row=2, column=0, sticky="w", padx=(0, 16), pady=(0, 4))
         self.dark_check = Switch(
             body,
@@ -1232,14 +1323,15 @@ class App:
             colors=_ui_colors,
             command=self._on_theme_change,
             font=self._font(),
-            default_font_size=DEFAULT_FONT_SIZE,
+            default_font_size=BASE_FONT_SIZE,
         )
         self.dark_check.grid(row=2, column=1, sticky="w")
 
-        footer = ttk.Frame(win, style="Card.TFrame")
-        footer.pack(side="bottom", fill="x", padx=PAD_X, pady=(6, PAD_Y))
+        footer = ttk.Frame(win, padding=(20, 6, 20, 16))
+        footer.pack(side="bottom", fill="x")
         ttk.Button(footer, text=self._tr("close"), command=self._close_settings).pack(side="right")
 
+        self._style_title_bar(win)
         win.protocol("WM_DELETE_WINDOW", self._close_settings)
         win.bind("<Escape>", lambda _e: self._close_settings())
 
@@ -1264,31 +1356,77 @@ class App:
 
     # ---------- main layout ----------
 
+    def _section(self, parent: ttk.Frame, key: str, row: int, first: bool = False) -> None:
+        label = ttk.Label(parent, text=self._tr(key), style="Section.TLabel")
+        label.grid(row=row, column=0, columnspan=3, sticky="w", pady=(0 if first else 18, 8))
+        self._section_labels.append((label, key))
+
     def _build_controls(self, parent: ttk.Frame, toolbar: ttk.Frame) -> None:
         parent.columnconfigure(0, weight=1)
         toolbar.columnconfigure(0, weight=1)
 
-        # --- source: input device + recording options ---
-        source = ttk.Frame(parent, style="Card.TFrame")
-        source.grid(row=0, column=0, sticky="nsew", padx=PAD_X, pady=PAD_Y)
+        # --- sidebar: capture, models, playback ---
+        source = ttk.Frame(parent, padding=(PAD_X, PAD_Y + 4, PAD_X, PAD_Y))
+        source.grid(row=0, column=0, sticky="nsew")
         source.columnconfigure(1, weight=1)
-        self.input_label = ttk.Label(source, text=self._tr("input"), style="Card.TLabel")
-        self.input_label.grid(row=0, column=0, sticky="w", pady=(0, 6))
+        self._section(source, "section_capture", 0, first=True)
+        self.input_label = ttk.Label(source, text=self._tr("input"))
+        self.input_label.grid(row=1, column=0, sticky="w", pady=(0, 8))
         self.device_combo = ttk.Combobox(source, state="readonly", width=16, font=self._font())
-        self.device_combo.grid(row=0, column=1, sticky="ew", padx=(8, 6), pady=(0, 6))
+        self.device_combo.grid(row=1, column=1, sticky="ew", padx=(12, 6), pady=(0, 8))
         self.device_combo.bind("<<ComboboxSelected>>", self._on_device_change)
-        self.refresh_button = ttk.Button(source, text="↻", width=4, command=self.refresh_devices)
-        self.refresh_button.grid(row=0, column=2, sticky="w", pady=(0, 6))
+        self.refresh_button = ttk.Button(source, text="↻", width=2, command=self.refresh_devices)
+        self.refresh_button.grid(row=1, column=2, sticky="e", pady=(0, 8))
         Tooltip(self.refresh_button, self._tr("refresh_input"))
-        self.output_label = ttk.Label(source, text=self._tr("output"), style="Card.TLabel")
-        self.output_label.grid(row=1, column=0, sticky="w", pady=(0, 6))
+        self.output_label = ttk.Label(source, text=self._tr("output"))
+        self.output_label.grid(row=2, column=0, sticky="w", pady=(0, 8))
         self.output_combo = ttk.Combobox(source, state="readonly", width=16, font=self._font())
-        self.output_combo.grid(row=1, column=1, sticky="ew", padx=(8, 6), pady=(0, 6))
+        self.output_combo.grid(row=2, column=1, sticky="ew", padx=(12, 6), pady=(0, 8))
         self.output_combo.bind("<<ComboboxSelected>>", self._on_output_change)
-        self.output_refresh_button = ttk.Button(source, text="↻", width=4, command=self.refresh_outputs)
-        self.output_refresh_button.grid(row=1, column=2, sticky="w", pady=(0, 6))
+        self.output_refresh_button = ttk.Button(source, text="↻", width=2, command=self.refresh_outputs)
+        self.output_refresh_button.grid(row=2, column=2, sticky="e", pady=(0, 8))
         Tooltip(self.output_refresh_button, self._tr("refresh_output"))
-        ttk.Label(source, text="LLM", style="Card.TLabel").grid(row=2, column=0, sticky="w")
+        self.mic_label = ttk.Label(source, text=self._tr("mic_capture"))
+        self.mic_label.grid(row=3, column=0, columnspan=2, sticky="w", pady=5)
+        self.mic_check = Switch(
+            source,
+            text="",
+            variable=self._mic_capture_var,
+            colors=_ui_colors,
+            command=self._on_mic_capture_change,
+            font=self._font(),
+            default_font_size=BASE_FONT_SIZE,
+        )
+        self.mic_check.grid(row=3, column=2, sticky="e", pady=5)
+        Tooltip(self.mic_check, TOOLTIP_MIC_CAPTURE)
+        self.system_label = ttk.Label(source, text=self._tr("system_capture"))
+        self.system_label.grid(row=4, column=0, columnspan=2, sticky="w", pady=5)
+        self.system_check = Switch(
+            source,
+            text="",
+            variable=self._system_capture_var,
+            colors=_ui_colors,
+            command=self._on_system_capture_change,
+            font=self._font(),
+            default_font_size=BASE_FONT_SIZE,
+        )
+        self.system_check.grid(row=4, column=2, sticky="e", pady=5)
+        Tooltip(self.system_check, TOOLTIP_SYSTEM_CAPTURE)
+        self.nr_label = ttk.Label(source, text=self._tr("noise_reduce"))
+        self.nr_label.grid(row=5, column=0, columnspan=2, sticky="w", pady=5)
+        self.nr_check = Switch(
+            source,
+            text="",
+            variable=self._nr_var,
+            colors=_ui_colors,
+            font=self._font(),
+            default_font_size=BASE_FONT_SIZE,
+        )
+        self.nr_check.grid(row=5, column=2, sticky="e", pady=5)
+        Tooltip(self.nr_check, TOOLTIP_NR)
+
+        self._section(source, "section_models", 6)
+        ttk.Label(source, text="LLM").grid(row=7, column=0, sticky="w", pady=(0, 8))
         self.llm_combo = ttk.Combobox(
             source,
             state="readonly",
@@ -1297,48 +1435,9 @@ class App:
             textvariable=self._llm_model_var,
             font=self._font(),
         )
-        self.llm_combo.grid(row=2, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(0, 6))
-        self.mic_label = ttk.Label(source, text=self._tr("mic_capture"), style="Card.TLabel")
-        self.mic_label.grid(row=3, column=0, sticky="w", pady=(4, 4))
-        self.mic_check = Switch(
-            source,
-            text="",
-            variable=self._mic_capture_var,
-            colors=_ui_colors,
-            command=self._on_mic_capture_change,
-            font=self._font(),
-            default_font_size=DEFAULT_FONT_SIZE,
-        )
-        self.mic_check.grid(row=3, column=1, sticky="w", padx=(8, 12), pady=(4, 4))
-        Tooltip(self.mic_check, TOOLTIP_MIC_CAPTURE)
-        self.system_label = ttk.Label(source, text=self._tr("system_capture"), style="Card.TLabel")
-        self.system_label.grid(row=4, column=0, sticky="w", pady=(4, 4))
-        self.system_check = Switch(
-            source,
-            text="",
-            variable=self._system_capture_var,
-            colors=_ui_colors,
-            command=self._on_system_capture_change,
-            font=self._font(),
-            default_font_size=DEFAULT_FONT_SIZE,
-        )
-        self.system_check.grid(row=4, column=1, sticky="w", padx=(8, 12), pady=(4, 4))
-        Tooltip(self.system_check, TOOLTIP_SYSTEM_CAPTURE)
-        self.nr_label = ttk.Label(source, text=self._tr("noise_reduce"), style="Card.TLabel")
-        self.nr_label.grid(row=5, column=0, sticky="w")
-        self.nr_check = Switch(
-            source,
-            text="",
-            variable=self._nr_var,
-            colors=_ui_colors,
-            font=self._font(),
-            default_font_size=DEFAULT_FONT_SIZE,
-        )
-        self.nr_check.grid(row=5, column=1, sticky="w", padx=(8, 12))
-        Tooltip(self.nr_check, TOOLTIP_NR)
-
-        self.hq_model_label = ttk.Label(source, text=self._tr("hq_model_label"), style="Card.TLabel")
-        self.hq_model_label.grid(row=6, column=0, sticky="w", pady=(8, 2))
+        self.llm_combo.grid(row=7, column=1, columnspan=2, sticky="ew", padx=(12, 0), pady=(0, 8))
+        self.hq_model_label = ttk.Label(source, text=self._tr("hq_model_label"))
+        self.hq_model_label.grid(row=8, column=0, sticky="w", pady=(0, 6))
         self.hq_model_combo = ttk.Combobox(
             source,
             state="readonly",
@@ -1346,23 +1445,24 @@ class App:
             textvariable=self._hq_model_var,
             font=self._font(),
         )
-        self.hq_model_combo.grid(row=6, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(8, 2))
+        self.hq_model_combo.grid(row=8, column=1, columnspan=2, sticky="ew", padx=(12, 0), pady=(0, 6))
         self.hq_model_combo.bind("<<ComboboxSelected>>", self._on_hq_model_change)
         self._hq_model_tooltip = Tooltip(self.hq_model_combo, TOOLTIP_HQ_MODEL)
-        self.hq_model_status = ttk.Label(source, text="", style="Hint.TLabel")
-        self.hq_model_status.grid(row=7, column=0, columnspan=3, sticky="w", padx=(0, 0), pady=(0, 4))
+        self.hq_model_status = ttk.Label(source, text="", style="Meta.TLabel")
+        self.hq_model_status.grid(row=9, column=0, columnspan=3, sticky="w")
         self._refresh_hq_model_combo()
 
-        playback = ttk.Frame(source, style="Card.TFrame")
-        playback.grid(row=8, column=0, columnspan=3, sticky="ew", pady=(14, 0))
+        self._section(source, "section_playback", 10)
+        playback = ttk.Frame(source)
+        playback.grid(row=11, column=0, columnspan=3, sticky="ew")
         playback.columnconfigure(2, weight=1)
-        self.play_button = ttk.Button(playback, text=self._tr("play"), width=12, command=self.toggle_play, state="disabled")
-        self.play_button.grid(row=0, column=0, sticky="ew", padx=(0, 4), pady=(0, 4))
+        self.play_button = ttk.Button(playback, text=self._tr("play"), width=11, command=self.toggle_play, state="disabled")
+        self.play_button.grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 6))
         Tooltip(self.play_button, TOOLTIP_PLAY)
-        self.stop_play_button = ttk.Button(playback, text="■", width=4, command=self.stop_play, state="disabled")
-        self.stop_play_button.grid(row=0, column=1, sticky="w", padx=(4, 0), pady=(0, 4))
-        self.position_label = ttk.Label(playback, text="00:00 / 00:00", style="Hint.TLabel")
-        self.position_label.grid(row=0, column=2, sticky="w", padx=(10, 0), pady=(0, 4))
+        self.stop_play_button = ttk.Button(playback, text="■", width=2, command=self.stop_play, state="disabled")
+        self.stop_play_button.grid(row=0, column=1, sticky="w", pady=(0, 6))
+        self.position_label = ttk.Label(playback, text="00:00 / 00:00", style="Meta.TLabel")
+        self.position_label.grid(row=0, column=2, sticky="w", padx=(12, 0), pady=(0, 6))
         self.timestamp_hint = ttk.Label(playback, text=self._tr("click_timestamp"), style="Hint.TLabel")
         self.timestamp_hint.grid(row=1, column=0, columnspan=3, sticky="w")
         playback.bind("<Configure>", lambda event: self.timestamp_hint.configure(wraplength=max(160, event.width)), add="+")
@@ -1370,38 +1470,35 @@ class App:
         self.refresh_outputs()
         self._update_capture_controls()
 
-        # --- controls: record + live | open audio + export mp3 ---
-        controls = ttk.Frame(toolbar, style="Card.TFrame")
-        controls.grid(row=0, column=0, sticky="ew", padx=PAD_X, pady=(8, 4))
-        controls.columnconfigure(3, weight=1)
+        # --- toolbar: record, open, save, live | numbered workflow actions ---
+        controls = ttk.Frame(toolbar)
+        controls.grid(row=0, column=0, sticky="ew", padx=PAD_X, pady=(PAD_Y, 8))
+        controls.columnconfigure(4, weight=1)
         self.record_button = ttk.Button(
-            controls, text=self._tr("record"), width=14, style="Accent.TButton", command=self.toggle_record
+            controls, text=self._tr("record"), width=12, style="Accent.TButton", command=self.toggle_record
         )
-        self.record_button.grid(row=0, column=0, sticky="w", padx=(0, 12))
+        self.record_button.grid(row=0, column=0, sticky="w", padx=(0, 8))
         Tooltip(self.record_button, TOOLTIP_RECORD)
+        self.open_button = ttk.Button(controls, text=self._tr("open_audio"), command=self.open_audio)
+        self.open_button.grid(row=0, column=1, sticky="w", padx=(0, 8))
+        Tooltip(self.open_button, TOOLTIP_OPEN)
+        self.export_mp3_button = ttk.Button(controls, text=self._tr("save_mp3"), command=self.export_mp3, state="disabled")
+        self.export_mp3_button.grid(row=0, column=2, sticky="w")
+        Tooltip(self.export_mp3_button, TOOLTIP_MP3)
         self.live_check = Switch(
             controls,
             text=self._tr("live"),
             variable=self._live_var,
             colors=_ui_colors,
             font=self._font(),
-            default_font_size=DEFAULT_FONT_SIZE,
+            default_font_size=BASE_FONT_SIZE,
         )
-        self.live_check.grid(row=1, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        self.live_check.grid(row=0, column=3, sticky="w", padx=(20, 0))
         Tooltip(self.live_check, TOOLTIP_LIVE)
         self._update_capture_controls()
-        self.export_mp3_button = ttk.Button(
-            controls, text=self._tr("save_mp3"), width=11, command=self.export_mp3, state="disabled"
-        )
-        self.export_mp3_button.grid(row=0, column=2, sticky="w", padx=(6, 0))
-        Tooltip(self.export_mp3_button, TOOLTIP_MP3)
-        self.open_button = ttk.Button(controls, text=self._tr("open_audio"), width=11, command=self.open_audio)
-        self.open_button.grid(row=0, column=1, sticky="w")
-        Tooltip(self.open_button, TOOLTIP_OPEN)
 
-        # --- numbered workflow actions ---
-        actions = ttk.Frame(toolbar, style="Card.TFrame")
-        actions.grid(row=1, column=0, sticky="ew", padx=PAD_X, pady=(4, 8))
+        actions = ttk.Frame(toolbar)
+        actions.grid(row=1, column=0, sticky="ew", padx=PAD_X, pady=(0, PAD_Y))
         for column in range(3):
             actions.columnconfigure(column, weight=1, uniform="steps")
         self.hq_button = ttk.Button(
@@ -1421,48 +1518,59 @@ class App:
         Tooltip(self.minutes_button, TOOLTIP_MINUTES)
 
         self.workflow_label = ttk.Label(actions, text=self._tr("workflow"), style="Workflow.TLabel")
-        self.workflow_label.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(6, 0))
+        self.workflow_label.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(8, 0))
         actions.bind("<Configure>", lambda event: self.workflow_label.configure(wraplength=max(160, event.width)), add="+")
+
+    def _editor(self, parent: ttk.Frame, **options) -> tk.Text:
+        """A borderless text area on the pane surface with a thin scrollbar."""
+        frame = ttk.Frame(parent)
+        text = tk.Text(
+            frame,
+            width=1,
+            wrap="word",
+            font=self._font(1),
+            undo=True,
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            background=SURFACE,
+            foreground=TEXT,
+            insertbackground=ACCENT,
+            selectbackground=ACCENT_SOFT,
+            selectforeground=TEXT,
+            padx=PAD_X,
+            pady=4,
+            spacing2=3,
+            **options,
+        )
+        scrollbar = ttk.Scrollbar(frame, command=text.yview)
+
+        def scroll(first: str, last: str) -> None:
+            scrollbar.set(first, last)
+            needed = float(first) > 0 or float(last) < 1
+            scrollbar.configure(style="Vertical.TScrollbar" if needed else "Idle.Vertical.TScrollbar")
+
+        text.configure(yscrollcommand=scroll)
+        text.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y", padx=(0, 4), pady=(0, 6))
+        return text
 
     def _build_transcript(self, parent: ttk.Frame) -> None:
         parent.rowconfigure(1, weight=1)
         parent.columnconfigure(0, weight=1)
 
-        transcript_header = ttk.Frame(parent, style="Card.TFrame")
-        transcript_header.grid(row=0, column=0, sticky="ew", padx=PAD_X, pady=(PAD_Y, 6))
+        transcript_header = ttk.Frame(parent)
+        transcript_header.grid(row=0, column=0, sticky="ew", padx=PAD_X, pady=(PAD_Y, 8))
         self.transcript_title = ttk.Label(transcript_header, text=self._tr("transcript"), style="Title.TLabel")
         self.transcript_title.pack(side="left")
         self.export_txt_button = ttk.Button(
-            transcript_header, text=self._tr("save"), width=8, command=self.export_transcript, state="disabled"
+            transcript_header, text=self._tr("save"), command=self.export_transcript, state="disabled"
         )
         self.export_txt_button.pack(side="right")
         Tooltip(self.export_txt_button, TOOLTIP_EXPORT_TXT)
 
-        text_frame = ttk.Frame(parent, style="Card.TFrame")
-        text_frame.grid(row=1, column=0, sticky="nsew", padx=PAD_X, pady=(0, PAD_Y))
-        self.transcript = tk.Text(
-            text_frame,
-            width=1,
-            wrap="word",
-            font=self._font(1),
-            height=10,
-            undo=True,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground=BORDER,
-            highlightcolor=ACCENT,
-            background=SURFACE_2,
-            foreground=TEXT,
-            insertbackground=ACCENT,
-            selectbackground=ACCENT_SOFT,
-            padx=10,
-            pady=8,
-            spacing3=5,
-        )
-        scrollbar = ttk.Scrollbar(text_frame, command=self.transcript.yview)
-        self.transcript.configure(yscrollcommand=scrollbar.set)
-        self.transcript.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        self.transcript = self._editor(parent, height=10, spacing3=6)
+        self.transcript.master.grid(row=1, column=0, sticky="nsew")
         self.transcript.bind("<KeyRelease>", lambda _e: self._sync_transcript_actions())
         self.transcript.tag_configure("seek", foreground=ACCENT, underline=True)
         self.transcript.tag_bind("seek", "<Button-1>", self._on_timestamp_click)
@@ -1473,13 +1581,13 @@ class App:
         parent.rowconfigure(3, weight=1)
         parent.columnconfigure(0, weight=1)
 
-        notes_header = ttk.Frame(parent, style="Card.TFrame")
-        notes_header.grid(row=0, column=0, sticky="ew", padx=PAD_X, pady=(PAD_Y, 4))
+        notes_header = ttk.Frame(parent)
+        notes_header.grid(row=0, column=0, sticky="ew", padx=PAD_X, pady=(PAD_Y, 6))
         self.notes_title = ttk.Label(notes_header, text=self._tr("notes"), style="Title.TLabel")
         self.notes_title.pack(side="left")
-        self.notes_load_button = ttk.Button(notes_header, text=self._tr("load"), width=8, command=self.load_notes)
+        self.notes_load_button = ttk.Button(notes_header, text=self._tr("load"), command=self.load_notes)
         self.notes_load_button.pack(side="right")
-        self.notes_save_button = ttk.Button(notes_header, text=self._tr("save"), width=8, command=self.save_notes)
+        self.notes_save_button = ttk.Button(notes_header, text=self._tr("save"), command=self.save_notes)
         self.notes_save_button.pack(side="right", padx=(0, 6))
 
         self.notes_hint = ttk.Label(
@@ -1489,37 +1597,15 @@ class App:
             wraplength=380,
             justify="left",
         )
-        self.notes_hint.grid(row=1, column=0, sticky="ew", padx=PAD_X, pady=(0, 6))
+        self.notes_hint.grid(row=1, column=0, sticky="ew", padx=PAD_X, pady=(0, 10))
         parent.bind(
             "<Configure>", lambda event: self.notes_hint.configure(wraplength=max(160, event.width - PAD_X * 2)), add="+"
         )
 
-        ttk.Separator(parent, orient="horizontal").grid(row=2, column=0, sticky="ew", padx=PAD_X)
+        ttk.Separator(parent, orient="horizontal").grid(row=2, column=0, sticky="ew")
 
-        notes_frame = ttk.Frame(parent, style="Card.TFrame")
-        notes_frame.grid(row=3, column=0, sticky="nsew", padx=PAD_X, pady=(10, PAD_Y))
-        self.notes_text = tk.Text(
-            notes_frame,
-            width=1,
-            wrap="word",
-            font=self._font(1),
-            undo=True,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground=BORDER,
-            highlightcolor=ACCENT,
-            background=SURFACE_2,
-            foreground=TEXT,
-            insertbackground=ACCENT,
-            selectbackground=ACCENT_SOFT,
-            selectforeground=TEXT,
-            padx=10,
-            pady=8,
-        )
-        notes_scroll = ttk.Scrollbar(notes_frame, command=self.notes_text.yview)
-        self.notes_text.configure(yscrollcommand=notes_scroll.set)
-        self.notes_text.pack(side="left", fill="both", expand=True)
-        notes_scroll.pack(side="right", fill="y")
+        self.notes_text = self._editor(parent, spacing3=4)
+        self.notes_text.master.grid(row=3, column=0, sticky="nsew", pady=(8, 0))
         self.notes_text.bind("<KeyRelease>", self._on_notes_change)
 
     # ---------- keyboard shortcuts ----------
@@ -1533,11 +1619,11 @@ class App:
         for seq in ("<Command-comma>", "<Control-comma>"):
             self.root.bind(seq, lambda _e: self.open_settings())
         for seq in ("<Control-plus>", "<Control-equal>", "<Control-KP_Add>", "<Command-plus>", "<Command-equal>"):
-            self.root.bind_all(seq, self._increase_font_size, add="+")
+            self.root.bind_all(seq, self._zoom_in, add="+")
         for seq in ("<Control-minus>", "<Control-KP_Subtract>", "<Command-minus>"):
-            self.root.bind_all(seq, self._decrease_font_size, add="+")
+            self.root.bind_all(seq, self._zoom_out, add="+")
         for seq in ("<Control-0>", "<Command-0>"):
-            self.root.bind_all(seq, self._reset_font_size, add="+")
+            self.root.bind_all(seq, self._reset_zoom, add="+")
 
     def _on_space(self, _event):
         widget = self.root.focus_get()
@@ -1551,21 +1637,21 @@ class App:
             self.export_transcript()
         return "break"
 
-    def _increase_font_size(self, _event=None):
-        return self._adjust_font_size(1)
+    def _zoom_in(self, _event=None):
+        return self._set_zoom(self._zoom + ZOOM_STEP)
 
-    def _decrease_font_size(self, _event=None):
-        return self._adjust_font_size(-1)
+    def _zoom_out(self, _event=None):
+        return self._set_zoom(self._zoom - ZOOM_STEP)
 
-    def _reset_font_size(self, _event=None):
-        return self._adjust_font_size(DEFAULT_FONT_SIZE - self._font_size)
+    def _reset_zoom(self, _event=None):
+        return self._set_zoom(DEFAULT_ZOOM)
 
-    def _adjust_font_size(self, delta: int):
-        new_size = _coerce_font_size(self._font_size + delta)
-        if new_size == self._font_size:
+    def _set_zoom(self, percent: int):
+        percent = _coerce_zoom(percent)
+        if percent == self._zoom:
             return "break"
-        self._font_size = new_size
-        self.zoom_button.configure(text=f"{round(new_size / DEFAULT_FONT_SIZE * 100)}%")
+        self._zoom = percent
+        self.zoom_button.configure(text=f"{percent}%")
         self._configure_style()
         self._restyle_direct_fonts()
         self._restyle_text_widgets()
@@ -2431,33 +2517,16 @@ class App:
     def _show_minutes(self, markdown: str) -> None:
         win = tk.Toplevel(self.root)
         win.title(f"{APP_NAME} — {self._tr('minutes_window')}")
-        win.geometry("680x600")
-        win.configure(background=BG)
-        frame = ttk.Frame(win, style="Card.TFrame")
-        frame.pack(fill="both", expand=True, padx=12, pady=12)
-        text = tk.Text(
-            frame,
-            wrap="word",
-            font=self._font(1),
-            undo=True,
-            relief="flat",
-            highlightthickness=1,
-            highlightbackground=BORDER,
-            background=SURFACE_2,
-            foreground=TEXT,
-            insertbackground=ACCENT,
-            selectbackground=ACCENT_SOFT,
-            selectforeground=TEXT,
-            padx=10,
-            pady=8,
-        )
-        sb = ttk.Scrollbar(frame, command=text.yview)
-        text.configure(yscrollcommand=sb.set)
+        win.geometry("720x640")
+        win.configure(background=SURFACE)
+        btn_row = ttk.Frame(win, padding=(PAD_X, 10, PAD_X, 12))
+        btn_row.pack(side="bottom", fill="x")
+        ttk.Separator(win).pack(side="bottom", fill="x")
+        text = self._editor(win, spacing3=4)
+        text.configure(pady=PAD_Y)
+        text.master.pack(fill="both", expand=True)
         text.insert("1.0", markdown)
-        text.pack(side="left", fill="both", expand=True)
-        sb.pack(side="right", fill="y")
-        btn_row = ttk.Frame(win)
-        btn_row.pack(fill="x", padx=12, pady=(0, 12))
+        self._style_title_bar(win)
 
         def save() -> None:
             path = filedialog.asksaveasfilename(
@@ -2697,26 +2766,9 @@ class App:
 
     def _set_status(self, text: str, kind: str = "ready") -> None:
         self._status_kind = kind
-        palette = {
-            "ready": (SURFACE_2, BORDER, TEXT_MUTED, "OK", TEXT_MUTED),
-            "recording": ("#fce4e2", DANGER, DANGER_DARK, "REC", "#ffffff"),
-            "busy": (ACCENT_SOFT, ACCENT, ACCENT_DARK, "RUN", "#ffffff"),
-            "download": (ACCENT_SOFT, ACCENT, ACCENT_DARK, "DL", "#ffffff"),
-            "ok": ("#dff3e8", OK_GREEN, OK_GREEN, "OK", "#ffffff"),
-        }
-        bg, border, fg, icon, icon_fg = palette.get(kind, palette["ready"])
-        if self._dark_var.get():
-            palette = {
-                "ready": (SURFACE_2, BORDER, TEXT_MUTED, "OK", TEXT_MUTED),
-                "recording": ("#351923", DANGER, "#ffd7df", "REC", BG),
-                "busy": (ACCENT_SOFT, ACCENT, TEXT, "RUN", BG),
-                "download": (ACCENT_SOFT, ACCENT, TEXT, "DL", BG),
-                "ok": ("#123828", OK_GREEN, "#d9ffee", "OK", BG),
-            }
-            bg, border, fg, icon, icon_fg = palette.get(kind, palette["ready"])
-        self.status_banner.config(background=bg, highlightbackground=border, highlightcolor=border)
-        self.status_icon.config(text=icon, background=border, foreground=icon_fg)
-        self.status.config(text=text, background=bg, foreground=fg)
+        dot = {"recording": DANGER, "busy": ACCENT, "download": ACCENT, "ok": OK_GREEN}.get(kind, TEXT_MUTED)
+        self.status_icon.config(background=SURFACE, foreground=dot)
+        self.status.config(text=text, background=SURFACE, foreground=INK_SOFT if kind == "ready" else TEXT)
 
     def _schedule_tick(self) -> None:
         self._tick_job = self.root.after(1000, self._tick)
@@ -2754,7 +2806,7 @@ class App:
                 "theme": self._theme_key(),
                 "dark_mode": bool(self._dark_var.get()),
                 "language": self._language_code(),
-                "font_size": self._font_size,
+                "zoom": self._zoom,
                 "geometry": self.root.winfo_geometry(),
             }
         )

@@ -32,4 +32,4 @@ llm_model = ""
 theme = "midnight"
 dark_mode = true
 language = "en"
-font_size = 11
+zoom = 100

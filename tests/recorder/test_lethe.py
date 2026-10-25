@@ -24,7 +24,7 @@ from recorder.lethe import (
     App,
     Player,
     _as_mono_int16,
-    _coerce_font_size,
+    _coerce_zoom,
     _fmt_time,
     _int16_peak,
     _is_connection_error,
@@ -46,11 +46,11 @@ def test_fmt_time_minutes_and_hours():
     assert _fmt_time(-5) == "00:00"
 
 
-def test_coerce_font_size_clamps_invalid_and_extreme_values():
-    assert _coerce_font_size("bad") == 11
-    assert _coerce_font_size(3) == 9
-    assert _coerce_font_size(99) == 18
-    assert _coerce_font_size("13") == 13
+def test_coerce_zoom_clamps_invalid_and_extreme_values():
+    assert _coerce_zoom("bad") == 100
+    assert _coerce_zoom(10) == 70
+    assert _coerce_zoom(999) == 160
+    assert _coerce_zoom("130") == 130
 
 
 def test_suggested_mp3_filename_uses_configured_template(monkeypatch):

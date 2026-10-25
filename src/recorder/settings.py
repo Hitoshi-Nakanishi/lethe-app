@@ -51,7 +51,7 @@ DEFAULT_CONFIG: dict = {
         "theme": "midnight",
         "dark_mode": True,
         "language": "en",
-        "font_size": 11,
+        "zoom": 100,
     },
 }
 
@@ -68,7 +68,7 @@ DEFAULTS: dict = {
     "theme": "midnight",
     "dark_mode": True,
     "language": "en",
-    "font_size": 11,
+    "zoom": 100,
 }
 
 # Temp-WAV name patterns Lethe creates; swept on startup.
@@ -111,7 +111,7 @@ def _merge_defaults(out: dict, defaults: object) -> None:
         return
     bool_keys = {"mic_capture", "system_capture", "noise_reduce", "live", "dark_mode"}
     str_keys = {"output_device_id", "llm_model", "theme", "language"}
-    int_keys = {"font_size"}
+    int_keys = {"zoom"}
     for key in bool_keys:
         value = defaults.get(key)
         if isinstance(value, bool):

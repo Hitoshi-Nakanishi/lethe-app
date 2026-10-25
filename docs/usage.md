@@ -116,8 +116,9 @@ English. The selected language is saved and restored on the next launch.
 | `Space` | Start or stop recording when focus is not inside a text field |
 | `Cmd/Ctrl+S` | Save transcript |
 | `Cmd/Ctrl+O` | Open audio file |
-| `Cmd/Ctrl++` | Increase app font size |
-| `Cmd/Ctrl+-` | Decrease app font size |
+| `Cmd/Ctrl++` | Zoom in |
+| `Cmd/Ctrl+-` | Zoom out |
+| `Cmd/Ctrl+0` | Reset zoom to 100% |
 | `Cmd/Ctrl+Z` | Undo text edits |
 
 ## Tips

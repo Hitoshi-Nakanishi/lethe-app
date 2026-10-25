@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ctypes
 import math
+import sys
 import tkinter as tk
 from collections.abc import Callable
 from typing import TypedDict
@@ -14,6 +16,7 @@ class UiColors(TypedDict):
     surface: str
     surface_2: str
     border: str
+    hover: str
     text: str
     muted: str
     accent: str
@@ -23,6 +26,94 @@ class UiColors(TypedDict):
 
 
 ColorProvider = Callable[[], UiColors]
+
+# DwmSetWindowAttribute ids; Windows 10 ignores the corner and colour ids and keeps its own frame.
+_DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+_DWMWA_WINDOW_CORNER_PREFERENCE = 33
+_DWMWCP_ROUND = 2
+_DWMWA_BORDER_COLOR = 34
+_DWMWA_CAPTION_COLOR = 35
+_DWMWA_TEXT_COLOR = 36
+
+
+def _rgb(color: str) -> tuple[int, int, int]:
+    return int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+
+
+def mix(color: str, other: str, amount: float) -> str:
+    """Blend two ``#rrggbb`` colours: 0 keeps ``color``, 1 gives ``other``."""
+    a, b = _rgb(color), _rgb(other)
+    return "#{:02x}{:02x}{:02x}".format(*(round(x + (y - x) * amount) for x, y in zip(a, b, strict=True)))
+
+
+def _coverage(x: int, y: int, width: int, height: int, radius: float) -> float:
+    """Share of pixel (x, y) inside a rounded rectangle anchored at the origin."""
+    inside = 0 <= x and x + 1 <= width and 0 <= y and y + 1 <= height
+    if (radius <= x and x + 1 <= width - radius) or (radius <= y and y + 1 <= height - radius):
+        return 1.0 if inside else 0.0
+    hits = 0
+    for i in range(4):
+        px = x + (i + 0.5) / 4
+        for j in range(4):
+            py = y + (j + 0.5) / 4
+            if not (0 <= px <= width and 0 <= py <= height):
+                continue
+            cx = min(max(px, radius), width - radius)
+            cy = min(max(py, radius), height - radius)
+            if (px - cx) ** 2 + (py - cy) ** 2 <= radius * radius:
+                hits += 1
+    return hits / 16
+
+
+def paint_rounded(image: tk.PhotoImage, *, fill: str, outline: str, background: str, radius: float) -> None:
+    """Fill ``image`` with an anti-aliased rounded rectangle and 1px outline over a known background.
+
+    Tk 8.6 photos have no partial alpha, so edges are blended into ``background``.
+    """
+    width, height = image.width(), image.height()
+    f, o, b = _rgb(fill), _rgb(outline), _rgb(background)
+    rows = []
+    for y in range(height):
+        row = []
+        for x in range(width):
+            outer = _coverage(x, y, width, height, radius)
+            inner = _coverage(x - 1, y - 1, width - 2, height - 2, max(0.0, radius - 1))
+            channels = (b[k] * (1 - outer) + o[k] * (outer - inner) + f[k] * inner for k in range(3))
+            row.append("#{:02x}{:02x}{:02x}".format(*(round(c) for c in channels)))
+        rows.append("{" + " ".join(row) + "}")
+    image.put(" ".join(rows))
+
+
+def _colorref(color: str) -> int:
+    r, g, b = _rgb(color)
+    return r | g << 8 | b << 16
+
+
+def _set_window_attributes(window: tk.Tk | tk.Toplevel, attributes: tuple[tuple[int, int], ...]) -> None:
+    """Apply DWM attributes to a window's frame on Windows; other platforms keep their native frame."""
+    if not sys.platform.startswith("win"):
+        return
+    try:
+        window.update_idletasks()
+        hwnd = int(window.wm_frame(), 16)
+        for attribute, value in attributes:
+            data = ctypes.c_int(value)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, attribute, ctypes.byref(data), ctypes.sizeof(data))
+    except (AttributeError, OSError, ValueError, tk.TclError):
+        pass
+
+
+def style_title_bar(window: tk.Tk | tk.Toplevel, *, caption: str, text: str, border: str, dark: bool) -> None:
+    """Colour the Windows title bar and frame to match the app."""
+    _set_window_attributes(
+        window,
+        (
+            (_DWMWA_USE_IMMERSIVE_DARK_MODE, int(dark)),
+            (_DWMWA_CAPTION_COLOR, _colorref(caption)),
+            (_DWMWA_TEXT_COLOR, _colorref(text)),
+            (_DWMWA_BORDER_COLOR, _colorref(border)),
+        ),
+    )
 
 
 class Tooltip:
@@ -62,7 +153,7 @@ class Tooltip:
             background="#2b2f38",
             foreground="#f4f5f7",
             relief="flat",
-            font=("", 10),
+            font="TkTooltipFont",
             padx=10,
             pady=7,
             wraplength=340,
@@ -75,8 +166,111 @@ class Tooltip:
             self._tip = None
 
 
+class PopupMenu:
+    """A themed drop-down list of commands; Tk's own menus keep a native light frame on Windows."""
+
+    def __init__(self, master: tk.Misc, *, colors: ColorProvider, font: Callable[[], FontSpec]) -> None:
+        self._master = master
+        self._colors = colors
+        self._font = font
+        self._items: list[tuple[str, str, Callable[[], object]] | None] = []
+        self._rows: list[tuple[list[tk.Label], Callable[[], object]]] = []
+        self._active = -1
+        self._window: tk.Toplevel | None = None
+
+    def add_command(self, label: str, command: Callable[[], object], accelerator: str = "") -> None:
+        self._items.append((label, accelerator, command))
+
+    def add_separator(self) -> None:
+        self._items.append(None)
+
+    def post(self, x: int, y: int) -> None:
+        self.unpost()
+        palette = self._colors()
+        window = tk.Toplevel(self._master, background=palette["border"])
+        window.overrideredirect(True)
+        window.attributes("-topmost", True)
+        body = tk.Frame(window, background=palette["surface"], padx=4, pady=4)
+        body.pack(padx=1, pady=1)
+        self._rows = []
+        for row, item in enumerate(self._items):
+            if item is None:
+                rule = tk.Frame(body, height=1, background=palette["border"])
+                rule.grid(row=row, column=0, columnspan=2, sticky="ew", pady=4)
+                continue
+            label, accelerator, command = item
+            index = len(self._rows)
+            cells = []
+            for column, (text, color, anchor) in enumerate(
+                ((label, palette["text"], "w"), (accelerator, palette["muted"], "e"))
+            ):
+                cell = tk.Label(
+                    body,
+                    text=text,
+                    anchor=anchor,
+                    padx=12,
+                    pady=5,
+                    font=self._font(),
+                    background=palette["surface"],
+                    foreground=color,
+                )
+                cell.grid(row=row, column=column, sticky="ew")
+                cell.bind("<Enter>", lambda _event, i=index: self._highlight(i))
+                cell.bind("<ButtonRelease-1>", lambda _event, i=index: self._invoke(i))
+                cells.append(cell)
+            self._rows.append((cells, command))
+        window.geometry(f"+{x}+{y}")
+        window.bind("<Escape>", lambda _event: self.unpost())
+        window.bind("<Up>", lambda _event: self._highlight((self._active - 1) % len(self._rows)))
+        window.bind("<Down>", lambda _event: self._highlight((self._active + 1) % len(self._rows)))
+        window.bind("<Return>", lambda _event: self._invoke(self._active))
+        window.bind("<ButtonPress>", self._on_press)
+        window.bind("<FocusOut>", lambda _event: self._master.after(100, self._close_if_app_inactive))
+        self._window = window
+        self._active = -1
+        _set_window_attributes(
+            window, ((_DWMWA_WINDOW_CORNER_PREFERENCE, _DWMWCP_ROUND), (_DWMWA_BORDER_COLOR, _colorref(palette["border"])))
+        )
+        window.focus_force()
+        window.grab_set()
+
+    def unpost(self) -> None:
+        window, self._window = self._window, None
+        if window is not None:
+            window.grab_release()
+            window.destroy()
+
+    def _close_if_app_inactive(self) -> None:
+        # Focus also leaves for a moment while Windows activates the popup; only another application taking it closes.
+        if self._window is not None and self._window.focus_get() is None:
+            self.unpost()
+
+    def _on_press(self, event: tk.Event) -> None:
+        window = self._window
+        if window is None:
+            return
+        x = event.x_root - window.winfo_rootx()
+        y = event.y_root - window.winfo_rooty()
+        if not (0 <= x < window.winfo_width() and 0 <= y < window.winfo_height()):
+            self.unpost()
+
+    def _highlight(self, index: int) -> None:
+        palette = self._colors()
+        for row, (cells, _command) in enumerate(self._rows):
+            for cell in cells:
+                cell.configure(background=palette["hover"] if row == index else palette["surface"])
+        self._active = index
+
+    def _invoke(self, index: int) -> None:
+        if not 0 <= index < len(self._rows):
+            return
+        command = self._rows[index][1]
+        self.unpost()
+        command()
+
+
 class Switch(tk.Frame):
-    """Compact iOS-style switch with a ttk.Checkbutton-compatible state surface."""
+    """Compact pill switch with a ttk.Checkbutton-compatible state surface."""
 
     def __init__(
         self,
@@ -97,8 +291,10 @@ class Switch(tk.Frame):
         self._command = command
         self._font: FontSpec = font or ("", default_font_size)
         self._disabled = False
-        self._width = 48
-        self._height = 28
+        self._width = 38
+        self._height = 22
+        self._track = tk.PhotoImage(master=self, width=self._width, height=self._height)
+        self._knob = tk.PhotoImage(master=self, width=self._height - 6, height=self._height - 6)
 
         self._label = tk.Label(self, text=text, font=self._font, anchor="w", bd=0)
         self._label.pack(side="left", padx=(0, 8) if text else (0, 0))
@@ -167,39 +363,25 @@ class Switch(tk.Frame):
     def _draw(self) -> None:
         palette = self._colors()
         selected = bool(self._variable.get())
-        track = palette["accent"] if selected and not self._disabled else palette["surface_2"]
+        track = palette["accent_dark"] if selected else mix(palette["border"], palette["muted"], 0.45)
         if self._disabled:
             track = palette["disabled_bg"]
-        outline = palette["accent_dark"] if selected and not self._disabled else palette["border"]
         knob = palette["disabled_fg"] if self._disabled else "#ffffff"
+        radius = self._height / 2
+        paint_rounded(self._track, fill=track, outline=track, background=palette["surface"], radius=radius)
+        paint_rounded(self._knob, fill=knob, outline=knob, background=track, radius=self._knob.width() / 2)
 
         self._canvas.delete("all")
-        pad = 2
-        radius = (self._height - pad * 2) // 2
-        left = pad
-        top = pad
-        right = self._width - pad
-        bottom = self._height - pad
-        self._canvas.create_oval(left, top, left + radius * 2, bottom, fill=track, outline=outline, width=1)
-        self._canvas.create_oval(right - radius * 2, top, right, bottom, fill=track, outline=outline, width=1)
-        self._canvas.create_rectangle(left + radius, top, right - radius, bottom, fill=track, outline=track)
-        knob_radius = radius - 2
-        knob_center = right - radius if selected else left + radius
-        self._canvas.create_oval(
-            knob_center - knob_radius,
-            top + 2,
-            knob_center + knob_radius,
-            bottom - 2,
-            fill=knob,
-            outline=knob,
-        )
+        self._canvas.create_image(0, 0, anchor="nw", image=self._track)
+        knob_x = self._width - self._height + 3 if selected else 3
+        self._canvas.create_image(knob_x, 3, anchor="nw", image=self._knob)
 
 
 class WaveMeter(tk.Canvas):
     """Animated wave display for recording and analysis states."""
 
     def __init__(self, master: tk.Widget, *, colors: ColorProvider, height: int = 42) -> None:
-        super().__init__(master, height=height, highlightthickness=1, bd=0, relief="flat")
+        super().__init__(master, height=height, highlightthickness=0, bd=0, relief="flat")
         self._colors = colors
         self.mode = "idle"
         self.level = 0.0
@@ -220,7 +402,7 @@ class WaveMeter(tk.Canvas):
 
     def restyle(self) -> None:
         palette = self._colors()
-        self.configure(highlightbackground=palette["border"], background=palette["surface_2"])
+        self.configure(background=palette["surface"])
         self.draw()
 
     def tick(self) -> None:
@@ -233,7 +415,6 @@ class WaveMeter(tk.Canvas):
         self.delete("all")
         width = max(1, self.winfo_width())
         height = max(1, self.winfo_height())
-        self.create_rectangle(0, 0, width, height, fill=palette["surface_2"], outline=palette["border"])
         if self.mode == "idle":
             self.create_line(12, height / 2, width - 12, height / 2, fill=palette["border"], width=2)
             return

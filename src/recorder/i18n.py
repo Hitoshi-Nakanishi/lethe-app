@@ -189,6 +189,10 @@ UI_TEXT = {
         "theme_label": "テーマ",
         "language_label": "言語",
         "dark_label": "ダークモード",
+        "toggle_theme": "ライト／ダークを切り替え",
+        "section_capture": "録音",
+        "section_models": "モデル",
+        "section_playback": "再生",
     },
     "en": {
         "tagline": "Recorder, transcription, minutes",
@@ -312,6 +316,10 @@ UI_TEXT = {
         "theme_label": "Theme",
         "language_label": "Language",
         "dark_label": "Dark mode",
+        "toggle_theme": "Switch between light and dark",
+        "section_capture": "Capture",
+        "section_models": "Models",
+        "section_playback": "Playback",
     },
 }
 

@@ -42,7 +42,7 @@ def test_save_then_load_roundtrip(tmp_path, monkeypatch):
             "theme": "ember",
             "dark_mode": False,
             "language": "en",
-            "font_size": 13,
+            "zoom": 130,
             "geometry": "800x600",
             "junk": "ignored",
         }
@@ -58,7 +58,7 @@ def test_save_then_load_roundtrip(tmp_path, monkeypatch):
     assert loaded["theme"] == "ember"
     assert loaded["dark_mode"] is False
     assert loaded["language"] == "en"
-    assert loaded["font_size"] == 13
+    assert loaded["zoom"] == 130
     assert loaded["geometry"] == "800x600"
     assert "junk" not in loaded  # unknown keys are dropped
 
@@ -88,7 +88,7 @@ output_device_id = "Speakers"
 noise_reduce = true
 llm_model = "mistral:7b"
 language = "en"
-font_size = 13
+zoom = 130
 """,
         encoding="utf-8",
     )
@@ -111,7 +111,7 @@ font_size = 13
     assert loaded["defaults"]["noise_reduce"] is True
     assert loaded["defaults"]["llm_model"] == "mistral:7b"
     assert loaded["defaults"]["language"] == "en"
-    assert loaded["defaults"]["font_size"] == 13
+    assert loaded["defaults"]["zoom"] == 130
 
 
 def test_load_settings_uses_toml_defaults_before_saved_preferences(tmp_path, monkeypatch):
@@ -128,7 +128,7 @@ llm_model = "qwen2.5:7b"
 theme = "aurora"
 dark_mode = false
 language = "en"
-font_size = 12
+zoom = 120
 """,
         encoding="utf-8",
     )
@@ -146,7 +146,7 @@ font_size = 12
     assert loaded["theme"] == "aurora"
     assert loaded["dark_mode"] is False
     assert loaded["language"] == "en"
-    assert loaded["font_size"] == 12
+    assert loaded["zoom"] == 120
 
 
 def test_saved_settings_override_toml_defaults(tmp_path, monkeypatch):
@@ -169,7 +169,7 @@ def test_invalid_toml_defaults_are_ignored(tmp_path):
 [defaults]
 live = "false"
 llm_model = 123
-font_size = "big"
+zoom = "big"
 """,
         encoding="utf-8",
     )
@@ -178,7 +178,7 @@ font_size = "big"
 
     assert loaded["defaults"]["live"] is True
     assert loaded["defaults"]["llm_model"] == ""
-    assert loaded["defaults"]["font_size"] == 11
+    assert loaded["defaults"]["zoom"] == 100
 
 
 def test_llm_models_includes_default_when_missing(tmp_path, monkeypatch):
