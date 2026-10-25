@@ -1,6 +1,10 @@
 # Lethe
 
+[![Tests](https://github.com/Hitoshi-Nakanishi/lethe-app/actions/workflows/tests.yml/badge.svg)](https://github.com/Hitoshi-Nakanishi/lethe-app/actions/workflows/tests.yml)
+[![Version](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FHitoshi-Nakanishi%2Flethe-app%2Fmain%2Fpyproject.toml&query=%24.project.version&label=version)](pyproject.toml)
 ![Python](https://img.shields.io/badge/python-3.14.4-blue)
+![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 Lethe は、会議、通話、インタビュー、デスクトップ上の音声を文字起こしと
 Markdown 議事録に変換するデスクトップアプリです。マイクや利用可能な入力
@@ -10,7 +14,15 @@ Markdown 議事録に変換するデスクトップアプリです。マイク�
 
 English documentation: [README.md](README.md)
 
-![Lethe desktop app screenshot](docs/assets/lethe-ja-topmost.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/lethe-ja-dark.png">
+  <img alt="文字起こしとメモを開いた Lethe の画面" src="docs/assets/lethe-ja-light.png">
+</picture>
+
+左側で入力・出力デバイス、録音の設定、モデルを選びます。文字起こしの上に録音と 3 つの処理が並びます。
+**① 高精度で文字起こし** は Whisper の高精度パス、**② メモで校正** はメモ欄の表記で人名や用語を直し、
+**③ 議事録を作成** は Markdown の議事録を書きます。時刻をクリックすると、その位置から音声を再生します。
+下のステータスバーに進み具合と録音時間が出ます。
 
 ## Motivation
 
@@ -33,9 +45,20 @@ task run
 `uv sync --dev` で Python 環境を同期します。
 `task run` は Lethe のデスクトップアプリを起動します。
 
-入力・モデル設定は左側、録音・解析の操作は文字起こしの上、メモは文字起こしの隣に配置しています。
 区切りをドラッグすると各領域の幅を変えられます。上部の − / + または Ctrl/Cmd + − / + で文字を拡大・縮小し、
-倍率表示をクリックするか Ctrl/Cmd + 0 で標準に戻せます。◐ でライトとダークを切り替え、テーマと言語は ⚙ から変更できます。
+倍率表示をクリックするか Ctrl/Cmd + 0 で標準に戻せます。◐ でライトとダークを切り替え、テーマ（Midnight、Aurora、Ember）と
+言語（日本語、英語）は ⚙ から変更できます。
+
+Docker でも開発用のチェックを実行できます。
+
+```sh
+docker compose up -d --build app
+docker compose exec app task default
+```
+
+Docker イメージは Python 3.14.4 と、Lethe が使う Tk、PortAudio、ffmpeg のネイティブライブラリを含み、コンテナのデータを
+`.docker-data/` に保存します。Docker からデスクトップ画面と録音を使うには、ホスト側の画面と音声の転送が必要です。詳しくは英語版
+[セットアップガイドの Docker の節](docs/setup.md#docker-development-environment) を見てください。
 
 モデルをダウンロードする前に、次を済ませてください。
 
@@ -70,11 +93,12 @@ task download-llm-models
 
 - マイク音声に加えて、Windows では PC から出ている音声を既定で録音。
 - マイク音声と PC 音声の取得をセッションごとにオン/オフ可能。
-- Whisper によるローカル文字起こし。ライブプレビューと高精度パスに対応。
+- Whisper によるローカル文字起こし。ライブプレビューと高精度パスに対応し、各 Whisper モデルが導入済みかを左側に表示。
 - タイムスタンプ付き文字起こしとクリック再生。
 - メモに書いた固有名詞、専門用語、人名を正しい表記として使った校正。
 - Ollama による Markdown 議事録生成。
 - 音声、文字起こし、メモ、メタデータをまとめたセッション保存。
+- MP3 音声、文字起こしとメモの Markdown、パスの対応を書いた manifest を 1 つのフォルダーに書き出すデータセット出力。
 
 ## ドキュメント
 
@@ -91,6 +115,9 @@ task download-llm-models
 ```sh
 task default
 ```
+
+[Tests ワークフロー](.github/workflows/tests.yml) は、push と pull request のたびに Windows と macOS で同じチェックを実行し、
+パッケージをビルドします。
 
 ## 名前について
 
