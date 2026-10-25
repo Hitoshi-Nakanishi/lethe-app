@@ -41,6 +41,10 @@ Python/Tkinter implementation.
 
 ## Git Policy
 
+- Follow [PUBLICATION.md](PUBLICATION.md): install Argus hooks in every clone
+  and check both the working tree and complete history before publication.
+  Missing private policy, unreadable attachments, and unresolved findings block
+  publication. Never bypass the hooks or add exceptions without the owner's decision.
 - When an assistant makes repository changes, create a git commit before ending
   the task unless the maintainer explicitly says not to commit.
 - If other pending local changes already exist, stage and commit only the files
