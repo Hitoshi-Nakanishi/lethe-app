@@ -803,6 +803,7 @@ class App:
         self.theme_label_widget: ttk.Label | None = None
         self.language_label_widget: ttk.Label | None = None
         self.dark_label_widget: ttk.Label | None = None
+        self.settings_close_button: ttk.Button | None = None
         self._settings_tooltip: Tooltip | None = None
         self._theme_var = tk.StringVar(value=THEMES.get(self._settings.get("theme"), THEMES["midnight"])["label"])
         self._dark_var = tk.BooleanVar(value=bool(self._settings.get("dark_mode")))
@@ -1116,6 +1117,7 @@ class App:
             self.theme_label_widget.config(text=self._tr("theme_label"))
             self.language_label_widget.config(text=self._tr("language_label"))
             self.dark_label_widget.config(text=self._tr("dark_label"))
+            self.settings_close_button.config(text=self._tr("close"))
             try:
                 self._settings_window.title(self._tr("settings_title"))
             except tk.TclError:
@@ -1329,7 +1331,8 @@ class App:
 
         footer = ttk.Frame(win, padding=(20, 6, 20, 16))
         footer.pack(side="bottom", fill="x")
-        ttk.Button(footer, text=self._tr("close"), command=self._close_settings).pack(side="right")
+        self.settings_close_button = ttk.Button(footer, text=self._tr("close"), command=self._close_settings)
+        self.settings_close_button.pack(side="right")
 
         self._style_title_bar(win)
         win.protocol("WM_DELETE_WINDOW", self._close_settings)
@@ -1344,6 +1347,7 @@ class App:
         self.theme_label_widget = None
         self.language_label_widget = None
         self.dark_label_widget = None
+        self.settings_close_button = None
         if win is not None:
             try:
                 win.destroy()
