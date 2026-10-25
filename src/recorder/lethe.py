@@ -794,7 +794,7 @@ class App:
         self.recorder = MicRecorder()
 
         root.title(f"{APP_NAME} — {self._tr('tagline')}")
-        root.geometry(self._settings.get("geometry") or "1180x780")
+        root.geometry(self._settings.get("geometry") or "1480x860")
         root.minsize(1060, 720)
         root.configure(background=BG)
 
@@ -803,20 +803,33 @@ class App:
         self._build_header()
         self._build_status_bar()
 
-        main = ttk.PanedWindow(root, orient="vertical")
+        main = ttk.PanedWindow(root, orient="horizontal")
         main.pack(side="top", fill="both", expand=True, padx=10, pady=(6, 6))
         controls = ttk.Frame(main, style="Card.TFrame")
-        editors = ttk.PanedWindow(main, orient="horizontal")
+        workspace = ttk.Frame(main)
+        toolbar = ttk.Frame(workspace, style="Card.TFrame")
+        toolbar.pack(fill="x", pady=(0, 6))
+        editors = ttk.PanedWindow(workspace, orient="horizontal")
+        editors.pack(fill="both", expand=True)
         transcript_panel = ttk.Frame(editors, style="Card.TFrame")
         notes_panel = ttk.Frame(editors, style="Card.TFrame")
-        editors.add(transcript_panel, weight=1)
+        editors.add(transcript_panel, weight=2)
         editors.add(notes_panel, weight=1)
         main.add(controls, weight=0)
-        main.add(editors, weight=1)
+        main.add(workspace, weight=1)
+        self._main_panes = main
+        self._source_panel = controls
 
-        self._build_controls(controls)
+        self._build_controls(controls, toolbar)
         self._build_transcript(transcript_panel)
         self._build_notes(notes_panel)
+
+        def size_editors(event):
+            if event.width > 1:
+                editors.sashpos(0, round(event.width * 0.62))
+                editors.unbind("<Configure>", size_binding)
+
+        size_binding = editors.bind("<Configure>", size_editors, add="+")
         self._bind_shortcuts()
 
         root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -840,7 +853,7 @@ class App:
         style.configure("Title.TLabel", background=SURFACE, foreground=TEXT, font=self._font(1, "bold"))
         style.configure("Hint.TLabel", background=SURFACE, foreground=TEXT_MUTED, font=self._font(-1))
         style.configure("Workflow.TLabel", background=SURFACE, foreground=ACCENT, font=self._font(-1))
-        style.configure("Wordmark.TLabel", background=SURFACE, foreground=ACCENT, font=self._font(11, "bold"))
+        style.configure("Wordmark.TLabel", background=SURFACE, foreground=TEXT, font=self._font(3, "bold"))
         style.configure("Tagline.TLabel", background=SURFACE, foreground=TEXT_MUTED, font=self._font())
         style.configure("Timer.TLabel", background=SURFACE, foreground=TEXT, font=self._font(15, "bold"))
         style.configure("Status.TLabel", background=BG, foreground=TEXT, font=self._font(1), padding=(10, 3))
@@ -856,7 +869,7 @@ class App:
             borderwidth=1,
             relief="flat",
             focuscolor=SURFACE,
-            padding=(12, 7),
+            padding=(10, 5),
             font=self._font(),
         )
         style.map(
@@ -865,7 +878,7 @@ class App:
             foreground=[("disabled", DISABLED_FG)],
             bordercolor=[("disabled", DISABLED_BG)],
         )
-        for name, base, dark in (("Accent", ACCENT, ACCENT_DARK), ("Danger", DANGER, DANGER_DARK)):
+        for name, base, dark in (("Accent", ACCENT_DARK, ACCENT_DARK), ("Danger", DANGER, DANGER_DARK)):
             style.configure(
                 f"{name}.TButton",
                 background=base,
@@ -874,7 +887,7 @@ class App:
                 borderwidth=1,
                 relief="flat",
                 focuscolor=base,
-                padding=(15, 9),
+                padding=(12, 6),
                 font=self._font(1, "bold"),
             )
             style.map(
@@ -897,24 +910,24 @@ class App:
         style.map(
             "Ghost.TButton",
             background=[("pressed", SURFACE_2), ("active", ACCENT_SOFT), ("disabled", SURFACE)],
-            foreground=[("active", ACCENT_DARK), ("disabled", DISABLED_FG)],
+            foreground=[("active", ACCENT), ("disabled", DISABLED_FG)],
             bordercolor=[("active", SURFACE_2)],
         )
         # Numbered workflow buttons: accent-tinted so they read as the main path.
         style.configure(
             "Step.TButton",
             background=ACCENT_SOFT,
-            foreground=ACCENT_DARK,
+            foreground=TEXT,
             bordercolor=ACCENT_SOFT,
             borderwidth=1,
             relief="flat",
             focuscolor=ACCENT_SOFT,
-            padding=(12, 7),
+            padding=(10, 5),
             font=self._font(0, "bold"),
         )
         style.map(
             "Step.TButton",
-            background=[("pressed", ACCENT), ("active", ACCENT), ("disabled", DISABLED_BG)],
+            background=[("pressed", ACCENT_DARK), ("active", ACCENT_DARK), ("disabled", DISABLED_BG)],
             foreground=[("pressed", "#ffffff"), ("active", "#ffffff"), ("disabled", DISABLED_FG)],
             bordercolor=[("disabled", DISABLED_BG)],
         )
@@ -1102,15 +1115,27 @@ class App:
 
     def _build_header(self) -> None:
         header = ttk.Frame(self.root, style="Header.TFrame")
-        header.pack(side="top", fill="x", padx=10, pady=(10, 0))
+        header.pack(side="top", fill="x")
         inner = ttk.Frame(header, style="Header.TFrame")
-        inner.pack(fill="x", padx=PAD_X, pady=10)
+        inner.pack(fill="x", padx=PAD_X, pady=6)
         inner.columnconfigure(1, weight=1)
         ttk.Label(inner, text=APP_NAME, style="Wordmark.TLabel").grid(row=0, column=0, sticky="w")
         self.tagline_label = ttk.Label(inner, text=f"  {self._tr('tagline')}", style="Tagline.TLabel")
         self.tagline_label.grid(row=0, column=1, sticky="w", padx=(4, 12), pady=(2, 0))
         self.settings_button = ttk.Button(inner, text="⚙", width=3, command=self.open_settings, style="Ghost.TButton")
-        self.settings_button.grid(row=0, column=2, sticky="e", padx=(8, 0))
+        zoom = ttk.Frame(inner, style="Header.TFrame")
+        zoom.grid(row=0, column=2, sticky="e")
+        ttk.Button(zoom, text="−", width=3, command=self._decrease_font_size, style="Ghost.TButton").pack(side="left")
+        self.zoom_button = ttk.Button(
+            zoom,
+            text=f"{round(self._font_size / DEFAULT_FONT_SIZE * 100)}%",
+            width=5,
+            command=self._reset_font_size,
+            style="Ghost.TButton",
+        )
+        self.zoom_button.pack(side="left")
+        ttk.Button(zoom, text="+", width=3, command=self._increase_font_size, style="Ghost.TButton").pack(side="left")
+        self.settings_button.grid(row=0, column=3, sticky="e", padx=(8, 0))
         self._settings_tooltip = Tooltip(self.settings_button, self._tr("settings"))
         inner.bind("<Configure>", lambda event: self.tagline_label.configure(wraplength=max(120, event.width // 2)))
 
@@ -1239,29 +1264,26 @@ class App:
 
     # ---------- main layout ----------
 
-    def _build_controls(self, parent: ttk.Frame) -> None:
-        parent.columnconfigure(0, weight=4, uniform="controls")
-        parent.columnconfigure(1, weight=3, uniform="controls")
-        parent.columnconfigure(2, weight=3, uniform="controls")
+    def _build_controls(self, parent: ttk.Frame, toolbar: ttk.Frame) -> None:
+        parent.columnconfigure(0, weight=1)
+        toolbar.columnconfigure(0, weight=1)
 
         # --- source: input device + recording options ---
         source = ttk.Frame(parent, style="Card.TFrame")
-        source.grid(row=0, column=0, sticky="nsew", padx=(PAD_X, 8), pady=(PAD_Y, 8))
-        source.columnconfigure(0, minsize=130)
-        source.columnconfigure(1, minsize=176)
-        source.columnconfigure(2, weight=1)
+        source.grid(row=0, column=0, sticky="nsew", padx=PAD_X, pady=PAD_Y)
+        source.columnconfigure(1, weight=1)
         self.input_label = ttk.Label(source, text=self._tr("input"), style="Card.TLabel")
         self.input_label.grid(row=0, column=0, sticky="w", pady=(0, 6))
-        self.device_combo = ttk.Combobox(source, state="readonly", width=19, font=self._font())
-        self.device_combo.grid(row=0, column=1, sticky="w", padx=(8, 12), pady=(0, 6))
+        self.device_combo = ttk.Combobox(source, state="readonly", width=16, font=self._font())
+        self.device_combo.grid(row=0, column=1, sticky="ew", padx=(8, 6), pady=(0, 6))
         self.device_combo.bind("<<ComboboxSelected>>", self._on_device_change)
         self.refresh_button = ttk.Button(source, text="↻", width=4, command=self.refresh_devices)
         self.refresh_button.grid(row=0, column=2, sticky="w", pady=(0, 6))
         Tooltip(self.refresh_button, self._tr("refresh_input"))
         self.output_label = ttk.Label(source, text=self._tr("output"), style="Card.TLabel")
         self.output_label.grid(row=1, column=0, sticky="w", pady=(0, 6))
-        self.output_combo = ttk.Combobox(source, state="readonly", width=19, font=self._font())
-        self.output_combo.grid(row=1, column=1, sticky="w", padx=(8, 12), pady=(0, 6))
+        self.output_combo = ttk.Combobox(source, state="readonly", width=16, font=self._font())
+        self.output_combo.grid(row=1, column=1, sticky="ew", padx=(8, 6), pady=(0, 6))
         self.output_combo.bind("<<ComboboxSelected>>", self._on_output_change)
         self.output_refresh_button = ttk.Button(source, text="↻", width=4, command=self.refresh_outputs)
         self.output_refresh_button.grid(row=1, column=2, sticky="w", pady=(0, 6))
@@ -1270,12 +1292,12 @@ class App:
         self.llm_combo = ttk.Combobox(
             source,
             state="readonly",
-            width=19,
+            width=16,
             values=self._llm_models,
             textvariable=self._llm_model_var,
             font=self._font(),
         )
-        self.llm_combo.grid(row=2, column=1, sticky="w", padx=(8, 12), pady=(0, 6))
+        self.llm_combo.grid(row=2, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=(0, 6))
         self.mic_label = ttk.Label(source, text=self._tr("mic_capture"), style="Card.TLabel")
         self.mic_label.grid(row=3, column=0, sticky="w", pady=(4, 4))
         self.mic_check = Switch(
@@ -1349,14 +1371,13 @@ class App:
         self._update_capture_controls()
 
         # --- controls: record + live | open audio + export mp3 ---
-        controls = ttk.Frame(parent, style="Card.TFrame")
-        controls.grid(row=0, column=1, sticky="nsew", padx=8, pady=(PAD_Y, 8))
-        controls.columnconfigure(0, weight=1)
-        controls.columnconfigure(1, weight=1)
+        controls = ttk.Frame(toolbar, style="Card.TFrame")
+        controls.grid(row=0, column=0, sticky="ew", padx=PAD_X, pady=(8, 4))
+        controls.columnconfigure(3, weight=1)
         self.record_button = ttk.Button(
             controls, text=self._tr("record"), width=14, style="Accent.TButton", command=self.toggle_record
         )
-        self.record_button.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        self.record_button.grid(row=0, column=0, sticky="w", padx=(0, 12))
         Tooltip(self.record_button, TOOLTIP_RECORD)
         self.live_check = Switch(
             controls,
@@ -1366,41 +1387,41 @@ class App:
             font=self._font(),
             default_font_size=DEFAULT_FONT_SIZE,
         )
-        self.live_check.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        self.live_check.grid(row=1, column=0, columnspan=4, sticky="w", pady=(6, 0))
         Tooltip(self.live_check, TOOLTIP_LIVE)
         self._update_capture_controls()
         self.export_mp3_button = ttk.Button(
             controls, text=self._tr("save_mp3"), width=11, command=self.export_mp3, state="disabled"
         )
-        self.export_mp3_button.grid(row=2, column=1, sticky="ew", padx=(6, 0))
+        self.export_mp3_button.grid(row=0, column=2, sticky="w", padx=(6, 0))
         Tooltip(self.export_mp3_button, TOOLTIP_MP3)
         self.open_button = ttk.Button(controls, text=self._tr("open_audio"), width=11, command=self.open_audio)
-        self.open_button.grid(row=2, column=0, sticky="ew", padx=(0, 6))
+        self.open_button.grid(row=0, column=1, sticky="w")
         Tooltip(self.open_button, TOOLTIP_OPEN)
 
         # --- numbered workflow actions ---
-        actions = ttk.Frame(parent, style="Card.TFrame")
-        actions.grid(row=0, column=2, sticky="nsew", padx=(8, PAD_X), pady=(PAD_Y, 8))
-        actions.columnconfigure(0, weight=1)
-        actions.columnconfigure(1, weight=1)
+        actions = ttk.Frame(toolbar, style="Card.TFrame")
+        actions.grid(row=1, column=0, sticky="ew", padx=PAD_X, pady=(4, 8))
+        for column in range(3):
+            actions.columnconfigure(column, weight=1, uniform="steps")
         self.hq_button = ttk.Button(
             actions, text=self._tr("hq"), style="Step.TButton", command=self.hq_transcribe, state="disabled"
         )
-        self.hq_button.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        self.hq_button.grid(row=0, column=0, sticky="ew", padx=(0, 4))
         Tooltip(self.hq_button, TOOLTIP_HQ)
         self.refine_button = ttk.Button(
             actions, text=self._tr("refine"), style="Step.TButton", command=self.refine_transcript, state="disabled"
         )
-        self.refine_button.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        self.refine_button.grid(row=0, column=1, sticky="ew", padx=4)
         Tooltip(self.refine_button, TOOLTIP_REFINE)
         self.minutes_button = ttk.Button(
             actions, text=self._tr("minutes"), style="Step.TButton", command=self.generate_minutes, state="disabled"
         )
-        self.minutes_button.grid(row=2, column=0, columnspan=2, sticky="ew")
+        self.minutes_button.grid(row=0, column=2, sticky="ew", padx=(4, 0))
         Tooltip(self.minutes_button, TOOLTIP_MINUTES)
 
         self.workflow_label = ttk.Label(actions, text=self._tr("workflow"), style="Workflow.TLabel")
-        self.workflow_label.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(12, 0))
+        self.workflow_label.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(6, 0))
         actions.bind("<Configure>", lambda event: self.workflow_label.configure(wraplength=max(160, event.width)), add="+")
 
     def _build_transcript(self, parent: ttk.Frame) -> None:
@@ -1421,6 +1442,7 @@ class App:
         text_frame.grid(row=1, column=0, sticky="nsew", padx=PAD_X, pady=(0, PAD_Y))
         self.transcript = tk.Text(
             text_frame,
+            width=1,
             wrap="word",
             font=self._font(1),
             height=10,
@@ -1478,6 +1500,7 @@ class App:
         notes_frame.grid(row=3, column=0, sticky="nsew", padx=PAD_X, pady=(10, PAD_Y))
         self.notes_text = tk.Text(
             notes_frame,
+            width=1,
             wrap="word",
             font=self._font(1),
             undo=True,
@@ -1513,6 +1536,8 @@ class App:
             self.root.bind_all(seq, self._increase_font_size, add="+")
         for seq in ("<Control-minus>", "<Control-KP_Subtract>", "<Command-minus>"):
             self.root.bind_all(seq, self._decrease_font_size, add="+")
+        for seq in ("<Control-0>", "<Command-0>"):
+            self.root.bind_all(seq, self._reset_font_size, add="+")
 
     def _on_space(self, _event):
         widget = self.root.focus_get()
@@ -1532,14 +1557,20 @@ class App:
     def _decrease_font_size(self, _event=None):
         return self._adjust_font_size(-1)
 
+    def _reset_font_size(self, _event=None):
+        return self._adjust_font_size(DEFAULT_FONT_SIZE - self._font_size)
+
     def _adjust_font_size(self, delta: int):
         new_size = _coerce_font_size(self._font_size + delta)
         if new_size == self._font_size:
             return "break"
         self._font_size = new_size
+        self.zoom_button.configure(text=f"{round(new_size / DEFAULT_FONT_SIZE * 100)}%")
         self._configure_style()
         self._restyle_direct_fonts()
         self._restyle_text_widgets()
+        self.root.update_idletasks()
+        self._main_panes.sashpos(0, self._source_panel.winfo_reqwidth())
         return "break"
 
     # ---------- recording lifecycle ----------
