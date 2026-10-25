@@ -101,13 +101,14 @@ placeholders via `dataset_template`.
 
 ## Themes
 
-Use the header theme selector to switch between Midnight, Aurora, and Ember.
-The **Dark** toggle switches each theme between light and dark palettes.
+Open ⚙ in the header to choose Midnight, Aurora, or Ember. The ◐ button in the
+header, or **Dark mode** under ⚙, switches each theme between light and dark
+palettes.
 
 ## Language
 
-Use the header language selector to switch the app UI between Japanese and
-English. The selected language is saved and restored on the next launch.
+Open ⚙ in the header and use **Language** to switch the app UI between
+Japanese and English. The selected language is saved and restored on the next launch.
 
 ## Shortcuts
 
