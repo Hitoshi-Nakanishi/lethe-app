@@ -4,204 +4,128 @@ Japanese version: [setup.ja.md](setup.ja.md)
 
 ## Requirements
 
-- Python 3.14.4 (the standard project environment in `.python-version`)
-- Tk-enabled Python
-- Several GB of free disk space for Whisper model downloads
-- Optional: Ollama for transcript correction and minutes generation
+Use Python 3.14.4 (the version in `.python-version`) with Tk support, [Task](https://taskfile.dev/) and several GB of free disk
+space for speech models. Ollama is optional for correction and minutes. Model downloads need an internet connection; processing
+uses local models afterward.
 
 ## Install
 
-Using Task:
+From the checkout:
 
 ```sh
-git clone <this repo> lethe-app
-cd lethe-app
 task setup
+task download-whisper-models
 task run
 ```
 
-`task setup` bootstraps uv when it is not available on PATH.
+`task setup` prepares uv when needed and syncs the Python environment. For other installation methods, see below.
 
-Before downloading models:
+## Models
 
-- Run `task setup` so the Python/uv environment exists.
-- For LLM model downloads, install Ollama and start it with `ollama serve`.
+The configured defaults are:
 
-List the configured models:
+| Purpose | Model |
+| --- | --- |
+| Speech transcription | `efwkjn/faster-whisper-ja-760M` (Japanese only) |
+| Correction and minutes | `qwen3.5:9b`, `gemma4:12b` through Ollama |
 
-```sh
-task model-list
+After `task setup`, use these commands:
+
+| Command | Action |
+| --- | --- |
+| `task model-list` | Show configured models |
+| `task download-whisper-models` | Download speech models |
+| `task download-llm-models` | Download LLMs; Ollama must be installed and running |
+| `task download-models` | Download both groups; Ollama must be running |
+| `task download-llm-model -- <model>` | Download a specific Ollama model |
+
+Start Ollama with its app or `ollama serve`. Recording and transcription do not require it.
+
+For another language, choose a multilingual Whisper model in `default.toml` or your private `LETHE_CONFIG`. For example:
+
+```toml
+[models]
+whisper_live_model = "large-v3-turbo"
+whisper_final_model = "large-v3-turbo"
+whisper_language = "en"
 ```
 
-Download both model groups:
+Download the configured models again, then select the model in the app. The interface language is a separate setting.
+
+## Configuration
+
+`default.toml` controls storage, models and initial UI settings. Set `LETHE_CONFIG` to use a private TOML file outside the
+checkout. Saved user choices in `settings.json` take precedence over `[defaults]`.
+
+| Section | Settings |
+| --- | --- |
+| `[paths]` | Settings directory, temporary WAV files, and `datasets_dir` for save/open dialogs |
+| `[models]` | Speech models and language, `ollama_url`, and LLM choices |
+| `[defaults]` | Capture options, live preview, theme, dark mode, language and zoom |
+| `[filenames]` | MP3 and dataset name templates using `{timestamp}` and `{meeting_name}` |
+
+Leave optional paths empty for OS defaults. Suggested filenames remain editable in the save dialog. See
+[default.toml](../default.toml) for the complete layout and [usage](usage.md#save-locations) for saved files.
+
+## Other installation methods
+
+With uv already installed:
 
 ```sh
-task download-models
-```
-
-`task download-models` downloads both:
-
-- Whisper speech model for transcription: `efwkjn/faster-whisper-ja-760M`
-- Ollama LLM models for correction/minutes: `qwen3.5:9b`, `gemma4:12b`
-
-To download only one group:
-
-```sh
-task download-whisper-models
-task download-llm-models
-```
-
-Using uv:
-
-```sh
-git clone <this repo> lethe-app
-cd lethe-app
 uv sync --dev
 uv run lethe
 ```
 
-Using venv and pip:
+Or activate a virtual environment and install with pip:
 
 ```sh
-git clone <this repo> lethe-app
-cd lethe-app
-python -m venv .venv
-source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install -e .
-```
-
-Run the app:
-
-```sh
+python -m pip install -e .
 lethe
 ```
 
+Both methods use the same model configuration. Model task commands also work after setup.
+
 ## Docker Development Environment
 
-The repository includes a Docker setup for repeatable development checks and
-containerized app runs:
+For containerized development checks:
 
 ```sh
 docker compose up -d --build app
 docker compose exec app task default
 ```
 
-The image is based on Python 3.14.4 and pre-syncs the locked `uv` development
-environment. It also installs the native libraries used by Lethe at runtime:
-Tk for the desktop UI, PortAudio/ALSA/PulseAudio libraries for `sounddevice`,
-and ffmpeg for audio conversion paths.
+The image includes Python 3.14.4, Tk, PortAudio and ffmpeg. It uses [docker/default.toml](../docker/default.toml), writes
+runtime data to ignored `.docker-data/`, and keeps Whisper/uv caches in named volumes. Use `docker compose exec app bash` for a
+shell.
 
-The app service uses [../docker/default.toml](../docker/default.toml). Container
-settings, temp files, and exported datasets are written under `.docker-data/`,
-which is ignored by git. Whisper and `uv` caches are persisted in Docker named
-volumes so model downloads and dependency caches survive container restarts.
+Interactive GUI and recording require host display/audio forwarding. On Linux, configure X11/Wayland and PulseAudio in `.env`
+and mount audio devices as needed. On macOS and Windows, host Python is usually simpler for interactive use.
 
-Open a shell in the app container:
-
-```sh
-docker compose exec app bash
-```
-
-Run the desktop app from the container:
-
-```sh
-docker compose exec app task run
-```
-
-GUI and audio forwarding depend on the host OS. On Linux, pass through your
-X11/Wayland and PulseAudio settings in `.env` and add any host-specific device
-mounts you need, such as `/dev/snd`. On Docker Desktop for macOS or Windows,
-containerized tests and model-management commands are the reliable path; local
-host Python is usually simpler for interactive microphone capture and Tk windows.
-
-To use containerized Ollama, start the optional profile and pull a model:
+For containerized Ollama:
 
 ```sh
 docker compose --profile ollama up -d ollama
 docker compose --profile ollama exec ollama ollama pull qwen3.5:9b
 ```
 
-The Docker config points Lethe to `http://ollama:11434`. If you prefer an
-Ollama service running on the host, copy [.env.example](../.env.example) to
-`.env` and set `LETHE_DOCKER_CONFIG` to a local TOML file whose
-`[models].ollama_url` uses `http://host.docker.internal:11434`.
+The Docker config uses `http://ollama:11434`. To use host Ollama, copy [.env.example](../.env.example) to `.env` and set
+`LETHE_DOCKER_CONFIG` to a private TOML with `ollama_url = "http://host.docker.internal:11434"` under `[models]`. Use
+`docker compose exec app task run` only when display and audio forwarding are configured.
 
-## Optional Ollama Setup
+## Troubleshooting
 
-Install Ollama, start the service, and pull a model that is not already covered
-by `task download-models`:
+| Symptom | Check |
+| --- | --- |
+| `_tkinter` import error | Use a Python build with Tcl/Tk support |
+| Ollama connection error | Start Ollama and download the selected model |
+| Recording does not start | Check microphone permissions and device use by other apps |
+| Empty transcription | Confirm the input meter moves; try disabling noise reduction |
 
-```sh
-ollama serve
-task download-llm-model -- qwen3.5:9b
-```
-
-Lethe can record and transcribe without Ollama. Correction and minutes
-generation require it.
-
-## Configuration
-
-Edit `default.toml` to choose where Lethe stores settings, temporary WAV files,
-the shared dataset/output folder used by save/open dialogs, the default MP3
-filename pattern, and the LLM model choices shown in the app. Set
-`LETHE_CONFIG` to point to another TOML file when you want a machine-local
-config outside the repo.
-
-Initial UI defaults are also configurable. They apply before a value is saved
-in `settings.json`; after that, the user's saved choice wins. For example:
-
-```toml
-[defaults]
-mic_capture = true
-noise_reduce = false
-live = false
-llm_model = "gemma4:12b"
-theme = "midnight"
-dark_mode = true
-language = "en"
-```
-
-MP3 save dialogs use the `[filenames]` section to suggest a selectable filename.
-The user can still edit the filename in the dialog.
-
-```toml
-[filenames]
-mp3_template = "{timestamp}_{meeting_name}.mp3"
-meeting_name = "team_sync"
-timestamp_format = "%Y%m%d_%H%M"
-```
-
-## macOS Tk Note
-
-If a pyenv Python was built without Tcl/Tk, Tkinter will fail to import. Install
-Tcl/Tk through Homebrew and rebuild Python with Tk support, or use an official
-Python installer that includes Tk.
-
-Verify Tk:
+On macOS, pyenv Python needs Tcl/Tk support at build time. Install Tcl/Tk and rebuild Python, or use a Python installer that
+includes Tk. Verify with:
 
 ```sh
 python -c "import tkinter, _tkinter; print(_tkinter.TK_VERSION)"
 ```
 
-## Verify
-
-```sh
-pytest -q
-lethe
-```
-
-With uv:
-
-```sh
-uv run pytest -q
-uv run lethe
-```
-
-## Troubleshooting
-
-| Symptom | Fix |
-|---|---|
-| `_tkinter` import error | Use a Python build with Tcl/Tk enabled |
-| Ollama connection error | Start `ollama serve` and pull the configured model |
-| Recording does not start | Check microphone permissions and whether another app is using the device |
-| Transcription is empty | Confirm the input level moves and try disabling noise reduction |
+For development checks, see [Contributing](../CONTRIBUTING.md).
